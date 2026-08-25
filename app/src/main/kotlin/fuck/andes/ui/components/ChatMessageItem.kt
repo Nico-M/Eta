@@ -683,7 +683,7 @@ private fun AgentMessageBlock(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            streamingState != null -> {
+            streamingState != null && !streamingRevealComplete -> {
                 StreamingMarkdown(
                     state = streamingState,
                     content = message.content,
