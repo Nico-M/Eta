@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.media.AudioManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
@@ -323,9 +322,6 @@ internal class AgentStructuredDeviceTools(
     private fun setSetting(args: JSONObject): String {
         val namespace = args.getString("namespace").lowercase(Locale.ROOT)
         val key = args.getString("key")
-        if (key.lowercase(Locale.ROOT) in PROTECTED_SETTING_KEYS) {
-            return error("PROTECTED_SETTING", "该安全关键设置不能由 Agent 修改")
-        }
         val result = root.execute(
             "settings --user current put ${shellQuote(namespace)} ${shellQuote(key)} " +
                 shellQuote(args.getString("value")),
@@ -346,25 +342,14 @@ internal class AgentStructuredDeviceTools(
     private fun appStateControl(args: JSONObject): String {
         val packageName = args.getString("package_name")
         if (!PACKAGE_NAME.matches(packageName)) return error("INVALID_PACKAGE", "包名格式无效")
-        if (
-            packageName in PROTECTED_PACKAGES ||
-            packageName.startsWith("com.android.providers.")
-        ) {
-            return error("PROTECTED_PACKAGE", "该核心包不能由 Agent 停止或冻结")
-        }
-        val appInfo = runCatching {
+        val appExists = runCatching {
             context.packageManager.getApplicationInfo(
                 packageName,
                 android.content.pm.PackageManager.ApplicationInfoFlags.of(0L),
             )
-        }.getOrNull() ?: return error("APP_NOT_FOUND", "未找到指定应用")
+        }.isSuccess
+        if (!appExists) return error("APP_NOT_FOUND", "未找到指定应用")
         val action = args.getString("action").lowercase(Locale.ROOT)
-        if (
-            action == "freeze" &&
-            appInfo.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-        ) {
-            return error("SYSTEM_APP_PROTECTED", "不能冻结系统应用")
-        }
         val command = when (action) {
             "force_stop" -> "am force-stop --user current ${shellQuote(packageName)}"
             "freeze" -> "pm disable-user --user current ${shellQuote(packageName)}"
@@ -638,32 +623,6 @@ internal class AgentStructuredDeviceTools(
         )
         const val COLOROS_CLOCK_PACKAGE = "com.coloros.alarmclock"
         val PACKAGE_NAME = Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")
-        val PROTECTED_PACKAGES = setOf(
-            "android",
-            "fuck.andes",
-            "com.android.systemui",
-            "com.android.settings",
-            "com.android.launcher",
-            "com.android.phone",
-            "com.android.bluetooth",
-            "com.android.nfc",
-            "com.android.permissioncontroller",
-            "com.android.packageinstaller",
-            "com.android.shell",
-            "com.coloros.phonemanager",
-            "com.oplus.safecenter",
-            "com.heytap.speechassist",
-            "com.google.android.gms",
-        )
-        val PROTECTED_SETTING_KEYS = setOf(
-            "accessibility_enabled",
-            "enabled_accessibility_services",
-            "adb_enabled",
-            "device_provisioned",
-            "user_setup_complete",
-            "install_non_market_apps",
-            "package_verifier_enable",
-        )
         val NETWORK_BLOCK = Regex("<Network>.*?</Network>", setOf(RegexOption.DOT_MATCHES_ALL))
         val XML_SSID = Regex("""<string name="SSID">(.*?)</string>""")
         val XML_PSK = Regex("""<string name="PreSharedKey">(.*?)</string>""")

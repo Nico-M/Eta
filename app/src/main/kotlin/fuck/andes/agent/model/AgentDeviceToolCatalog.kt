@@ -212,7 +212,7 @@ internal object AgentDeviceToolCatalog {
             .put(
                 function(
                     "set_setting",
-                    "修改一个非安全关键 Android Settings 值。无障碍、ADB、设备初始化等关键键会被拒绝。",
+                    "修改一个 Android Settings 值。",
                     properties(
                         "namespace" to enumString("设置命名空间", "system", "secure", "global"),
                         "key" to string("精确设置键", 200),
@@ -235,7 +235,7 @@ internal object AgentDeviceToolCatalog {
             .put(
                 function(
                     "app_state_control",
-                    "停止、冻结或解冻一个精确包名。核心系统包受保护；freeze 不允许系统应用。",
+                    "停止、冻结或解冻一个精确包名，包括系统应用。",
                     properties(
                         "package_name" to string("精确 Android 包名", 255),
                         "action" to enumString("动作", "force_stop", "freeze", "unfreeze"),

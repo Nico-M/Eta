@@ -23,7 +23,6 @@ internal data class McpToolDefinition(
     val destructiveHint: Boolean? = null,
     val idempotentHint: Boolean? = null,
     val openWorldHint: Boolean? = null,
-    val unavailableReason: String? = null,
 )
 
 @Serializable
@@ -46,6 +45,6 @@ internal data class McpServerSetting(
         get() = if (!enabled) {
             emptyList()
         } else {
-            tools.filter { it.name in enabledToolNames && it.unavailableReason == null }
+            tools.filter { it.name in enabledToolNames }
         }
 }

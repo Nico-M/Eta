@@ -107,11 +107,6 @@ class AgentFileReferenceGatewayTest {
                 .resolveAbsolutePath("/data/local/tmp/file"),
         )
         assertFailure(
-            expected = AgentFileReferenceGateway.Error.OutsideAllowedRoots,
-            result = AgentFileReferenceGateway { failed(exitCode = 22) }
-                .resolveAbsolutePath("/data/local/tmp/file"),
-        )
-        assertFailure(
             expected = AgentFileReferenceGateway.Error.UnsupportedFileType,
             result = AgentFileReferenceGateway { failed(exitCode = 23) }
                 .resolveAbsolutePath("/data/local/tmp/socket"),
@@ -127,11 +122,17 @@ class AgentFileReferenceGatewayTest {
                 failed(exitCode = -2, timedOut = true)
             }.resolveAbsolutePath("/data/local/tmp/file"),
         )
-        assertFailure(
-            expected = AgentFileReferenceGateway.Error.OutsideAllowedRoots,
-            result = AgentFileReferenceGateway {
+        assertEquals(
+            AgentFileReferenceGateway.Resolution.Success(
+                AgentFileReference(
+                    displayName = "secret",
+                    absolutePath = "/data/adb/secret",
+                    kind = AgentFileReferenceKind.File,
+                )
+            ),
+            AgentFileReferenceGateway {
                 success("file\n/data/adb/secret")
-            }.resolveAbsolutePath("/data/local/tmp/link"),
+            }.resolveAbsolutePath("/data/adb/secret"),
         )
     }
 

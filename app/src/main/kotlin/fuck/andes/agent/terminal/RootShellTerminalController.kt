@@ -793,7 +793,6 @@ internal class RootShellTerminalController(
             else -> "$DEFAULT_CWD/$raw"
         }
         val normalized = File(effective).canonicalPath
-        require(normalized != "/") { "拒绝直接操作根目录" }
         return normalized
     }
 

@@ -21,6 +21,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class McpRunContextTest {
     @Test
+    fun enabledToolIsActiveRegardlessOfSchemaKeywords() {
+        val definition = McpToolDefinition(
+            name = "create_task",
+            inputSchemaJson = """{"type":"object","anyOf":[]}""",
+        )
+        val server = McpServerSetting(
+            id = "server",
+            name = "Server",
+            url = "https://example.com/mcp",
+            tools = listOf(definition),
+            enabledToolNames = setOf(definition.name),
+        )
+
+        assertEquals(listOf(definition), server.activeTools)
+    }
+
+    @Test
     fun snapshotUsesFrozenTokenAndReportsTruncatedOrUnsupportedContent() {
         val authorization = AtomicReference<String>()
         val server = localServer { exchange ->

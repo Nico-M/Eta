@@ -59,9 +59,8 @@ internal class AgentImageTools(
         destination: File,
     ): String = when (sourceKind) {
         ImageSourceKind.File -> "[ -f ${shellQuote(source)} ] || exit 21; " +
-            "[ ! -L ${shellQuote(source)} ] || exit 22; " +
-            "[ \"$(stat -c %s ${shellQuote(source)})\" -le $MAX_IMAGE_FILE_BYTES ] || exit 23; " +
-            "cp ${shellQuote(source)} ${shellQuote(destination.absolutePath)} || exit 24"
+            "[ \"$(stat -c %s ${shellQuote(source)})\" -le $MAX_IMAGE_FILE_BYTES ] || exit 22; " +
+            "cp ${shellQuote(source)} ${shellQuote(destination.absolutePath)} || exit 23"
         ImageSourceKind.MediaUri -> "content read --uri ${shellQuote(source)} 2>/dev/null | " +
             "head -c ${MAX_IMAGE_FILE_BYTES + 1L} > ${shellQuote(destination.absolutePath)} && " +
             "[ \"$(stat -c %s ${shellQuote(destination.absolutePath)})\" -le $MAX_IMAGE_FILE_BYTES ]"
@@ -74,9 +73,8 @@ internal class AgentImageTools(
 
     private fun copyFailure(result: BoundedRootCommandExecutor.Result): String = when (result.exitCode) {
         21 -> error("IMAGE_SOURCE_UNAVAILABLE", "图片源文件不存在或当前不可读")
-        22 -> error("IMAGE_SYMBOLIC_LINK_DENIED", "不允许读取符号链接图片")
-        23 -> error("IMAGE_TOO_LARGE", "图片超过大小限制")
-        24 -> error("IMAGE_STAGE_FAILED", "Root 无法将图片复制到 Eta 临时缓存")
+        22 -> error("IMAGE_TOO_LARGE", "图片超过大小限制")
+        23 -> error("IMAGE_STAGE_FAILED", "Root 无法将图片复制到 Eta 临时缓存")
         else -> error("IMAGE_UNAVAILABLE", "图片读取失败")
     }
 

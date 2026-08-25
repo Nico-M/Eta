@@ -270,7 +270,7 @@
   <string name="ui_search_model_df5586">搜尋模型</string>
   <string name="ui_support_anthropic_claude_official_or_compatible_api_de3f80">支援 Anthropic Claude 官方或相容 API</string>
   <string name="ui_support_chatgpt_deepseek_kimi_glm_qwen_etc_b31d02">支援 ChatGPT、DeepSeek、Kimi、GLM、Qwen 等服務</string>
-  <string name="ui_supports_files_and_folders_under_internal_storage_or_520786">支援內部儲存或 /data/local/tmp 下的檔案和資料夾</string>
+  <string name="ui_supports_files_and_folders_under_internal_storage_or_520786">支援任意本機絕對路徑下的檔案和資料夾</string>
   <string name="ui_support_thinking_5b9e4c">支援推理</string>
   <string name="ui_new_anthropic_db6098">新增 Anthropic</string>
   <string name="ui_added_openai_compatible_6bd471">新增 OpenAI-compatible</string>
@@ -614,7 +614,7 @@
   <string name="tool_ui_session_terminal_09c6e6">互動式終端機</string>
   <string name="tool_ui_save_location_c29782">儲存地點</string>
   <string name="tool_ui_modify_system_settings_ae1f4c">修改系統設定</string>
-  <string name="tool_ui_modify_non_security_critical_settings_keys_91a37e">修改非安全關鍵 Settings 鍵</string>
+  <string name="tool_ui_modify_android_settings_keys_91a37e">修改 Android Settings 鍵</string>
   <string name="tool_ui_stop_freeze_or_unfreeze_apps_a27438">停止、凍結或解凍應用</string>
   <string name="tool_ui_health_summary_951c0b">健康摘要</string>
   <string name="tool_ui_share_files_a3b376">分享檔案</string>
@@ -748,7 +748,6 @@
   <string name="state_ui_skill_md_not_found_in_zip_a57975">ZIP 中沒有找到 SKILL.md。</string>
   <string name="state_ui_the_zip_content_has_changed_please_reselect_and__ab8b12">ZIP 內容已變化，請重新選擇並確認要取代的 Skill。</string>
   <string name="state_ui_only_read_when_the_agent_calls_the_tool_8cf77b">僅在 Agent 呼叫工具時讀取</string>
-  <string name="state_ui_only_supports_internal_storage_and_paths_under_d_df42c4">僅支援內部儲存和 /data/local/tmp 下的路徑</string>
   <string name="state_ui_only_supports_normal_files_and_folders_4adea0">僅支援一般檔案與資料夾</string>
   <string name="state_ui_to_open_13ec17">去開啟</string>
   <string name="state_ui_to_authorize_762ec4">去授權</string>

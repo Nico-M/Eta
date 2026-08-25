@@ -39,6 +39,7 @@ internal class McpHttpClient(
 
     private val endpoint = validateMcpEndpoint(server.url)
     private val requestIds = AtomicLong(1)
+    private val toolHeadersByName = mutableMapOf<String, McpToolHeaders>()
     private val lifecycleLock = Any()
     private var activeCall: Call? = null
     private var closed = false
@@ -65,6 +66,13 @@ internal class McpHttpClient(
             in SUPPORTED_LEGACY_PROTOCOL_VERSIONS -> initializeLegacy()
             else -> McpProtocolMode.LATEST.also { negotiatedVersion = it }
         }
+        val parameterHeaders = if (version == McpProtocolMode.LATEST) {
+            toolHeadersByName.getOrPut(tool.name) {
+                McpToolHeaders.fromSchema(JSONObject(tool.inputSchemaJson))
+            }.extract(arguments)
+        } else {
+            emptyMap()
+        }
         fun invoke(sessionId: String?): JSONObject = unwrapResult(
             requireNotNull(
                 request(
@@ -75,6 +83,7 @@ internal class McpHttpClient(
                         .put("arguments", arguments),
                     protocolVersion = version,
                     sessionId = sessionId,
+                    additionalHeaders = parameterHeaders,
                 ).json,
             ) { "MCP 工具返回为空" },
         )
@@ -229,7 +238,6 @@ internal class McpHttpClient(
     private fun parseTool(source: JSONObject): McpToolDefinition {
         val name = source.optString("name").trim()
         val schema = source.optJSONObject("inputSchema")
-        val unavailable = validateToolDefinition(name, schema)
         val annotations = source.optJSONObject("annotations")
         return McpToolDefinition(
             name = name,
@@ -242,7 +250,6 @@ internal class McpHttpClient(
             destructiveHint = annotations?.nullableBoolean("destructiveHint"),
             idempotentHint = annotations?.nullableBoolean("idempotentHint"),
             openWorldHint = annotations?.nullableBoolean("openWorldHint"),
-            unavailableReason = unavailable,
         )
     }
 
@@ -252,6 +259,7 @@ internal class McpHttpClient(
         protocolVersion: String,
         sessionId: String?,
         name: String? = null,
+        additionalHeaders: Map<String, String> = emptyMap(),
     ): WireResponse {
         val id = requestIds.getAndIncrement()
         val decoratedParams = JSONObject(params.toString())
@@ -279,8 +287,20 @@ internal class McpHttpClient(
             .header(HEADER_PROTOCOL_VERSION, protocolVersion)
             .header(HEADER_METHOD, method)
             .apply {
-                name?.let { header(HEADER_NAME, it) }
+                name?.let {
+                    header(
+                        HEADER_NAME,
+                        if (protocolVersion == McpProtocolMode.LATEST) {
+                            encodeMcpHeaderValue(it)
+                        } else {
+                            it
+                        },
+                    )
+                }
                 sessionId?.let { header(HEADER_SESSION_ID, it) }
+                additionalHeaders.forEach { (headerName, headerValue) ->
+                    header(headerName, headerValue)
+                }
             }
             .applyAuthorization()
             .build()
@@ -493,38 +513,4 @@ private class McpProtocolCompatibilityException(cause: Throwable) : IOException(
 
 internal fun validateMcpEndpoint(raw: String): okhttp3.HttpUrl {
     return raw.trim().toHttpUrlOrNull() ?: error("MCP 地址无效")
-}
-
-internal fun validateToolDefinition(name: String, schema: JSONObject?): String? {
-    if (name.length !in 1..128 || !name.matches(Regex("[A-Za-z0-9_.-]+"))) {
-        return "工具名不符合 MCP 约束"
-    }
-    if (schema == null) return "缺少 inputSchema"
-    if (schema.toString().toByteArray().size > 64 * 1024) return "inputSchema 超过 64 KiB"
-    if (schema.optString("type").ifBlank { "object" } != "object") {
-        return "第一版仅支持 object 根 schema"
-    }
-    val unsupported = setOf(
-        "\$ref", "\$dynamicRef", "oneOf", "anyOf", "allOf", "not", "if", "then", "else",
-        "dependentSchemas", "patternProperties", "unevaluatedProperties", "x-mcp-header",
-    )
-    fun visit(value: Any?): String? = when (value) {
-        is JSONObject -> {
-            val keys = value.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                if (key in unsupported) return "暂不支持 schema 关键字 $key"
-                visit(value.opt(key))?.let { return it }
-            }
-            null
-        }
-        is JSONArray -> {
-            for (index in 0 until value.length()) {
-                visit(value.opt(index))?.let { return it }
-            }
-            null
-        }
-        else -> null
-    }
-    return visit(schema)
 }

@@ -301,13 +301,11 @@ internal fun McpServerDetailScreen(
                 } else {
                     server.tools.forEachIndexed { index, tool ->
                         if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-                        val available = tool.unavailableReason == null
-                        val checked = tool.name in server.enabledToolNames && available
+                        val checked = tool.name in server.enabledToolNames
                         SwitchPreference(
                             title = tool.title.ifBlank { tool.name },
                             summary = toolSummary(tool),
                             checked = checked,
-                            enabled = available,
                             onCheckedChange = { enabled ->
                                 if (enabled && tool.readOnlyHint != true) {
                                     pendingRiskyTool = tool
@@ -417,7 +415,6 @@ internal fun McpServerDetailScreen(
 
 @Composable
 private fun toolSummary(tool: McpToolDefinition): String = when {
-    tool.unavailableReason != null -> tool.unavailableReason
     tool.readOnlyHint == true -> tool.description.ifBlank { stringResource(R.string.mcp_read_only_tool) }
     else -> tool.description.ifBlank { stringResource(R.string.mcp_may_modify_data) }
 }

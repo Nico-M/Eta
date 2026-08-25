@@ -288,7 +288,7 @@
   <string name="ui_search_model_df5586">Search model</string>
   <string name="ui_support_anthropic_claude_official_or_compatible_api_de3f80">Support Anthropic Claude official or compatible API</string>
   <string name="ui_support_chatgpt_deepseek_kimi_glm_qwen_etc_b31d02">Support ChatGPT, DeepSeek, Kimi, GLM, Qwen, etc.</string>
-  <string name="ui_supports_files_and_folders_under_internal_storage_or_520786">Supports files and folders under internal storage or /data/local/tmp</string>
+  <string name="ui_supports_files_and_folders_under_internal_storage_or_520786">Supports files and folders at any local absolute path</string>
   <string name="ui_support_thinking_5b9e4c">Supports reasoning</string>
   <string name="ui_new_anthropic_db6098">Add Anthropic provider</string>
   <string name="ui_added_openai_compatible_6bd471">Add OpenAI-compatible provider</string>
@@ -621,7 +621,7 @@
   <string name="tool_ui_session_terminal_09c6e6">session terminal</string>
   <string name="tool_ui_save_location_c29782">save location</string>
   <string name="tool_ui_modify_system_settings_ae1f4c">Modify system settings</string>
-  <string name="tool_ui_modify_non_security_critical_settings_keys_91a37e">Modify non-security-critical Settings keys</string>
+  <string name="tool_ui_modify_android_settings_keys_91a37e">Modify Android Settings keys</string>
   <string name="tool_ui_stop_freeze_or_unfreeze_apps_a27438">Stop, freeze or unfreeze apps</string>
   <string name="tool_ui_health_summary_951c0b">health summary</string>
   <string name="tool_ui_share_files_a3b376">Share files</string>
@@ -755,7 +755,6 @@
   <string name="state_ui_skill_md_not_found_in_zip_a57975">SKILL.md not found in ZIP.</string>
   <string name="state_ui_the_zip_content_has_changed_please_reselect_and__ab8b12">The ZIP content has changed, please reselect and confirm the skill you want to replace.</string>
   <string name="state_ui_only_read_when_the_agent_calls_the_tool_8cf77b">Only read when the Agent calls the tool</string>
-  <string name="state_ui_only_supports_internal_storage_and_paths_under_d_df42c4">Only supports internal storage and paths under /data/local/tmp</string>
   <string name="state_ui_only_supports_normal_files_and_folders_4adea0">Only supports normal files and folders</string>
   <string name="state_ui_to_open_13ec17">to open</string>
   <string name="state_ui_to_authorize_762ec4">to authorize</string>

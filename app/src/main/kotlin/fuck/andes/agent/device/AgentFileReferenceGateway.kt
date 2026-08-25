@@ -77,7 +77,6 @@ internal class AgentFileReferenceGateway(
                     result.errorCode == "ROOT_UNAVAILABLE" -> Error.RootUnavailable
                     result.timedOut -> Error.ValidationTimedOut
                     result.exitCode == EXIT_ROOT_UNAVAILABLE -> Error.RootUnavailable
-                    result.exitCode == EXIT_OUTSIDE_ALLOWED_ROOTS -> Error.OutsideAllowedRoots
                     result.exitCode == EXIT_UNSUPPORTED_TYPE -> Error.UnsupportedFileType
                     result.exitCode == EXIT_PATH_NOT_FOUND -> Error.PathNotFound
                     else -> Error.RootUnavailable
@@ -94,19 +93,16 @@ internal class AgentFileReferenceGateway(
         val canonicalPath = result.stdout.substring(outputSeparator + 1).trimEnd('\n')
         if (
             canonicalPath.isEmpty() ||
-            canonicalPath.hasUnsupportedControlCharacter() ||
-            !isWithinAllowedRoots(canonicalPath)
+            canonicalPath.hasUnsupportedControlCharacter()
         ) {
-            return Resolution.Failure(Error.OutsideAllowedRoots)
+            return Resolution.Failure(Error.InvalidPath)
         }
         if (expectedKind != null && kind != expectedKind) {
             return Resolution.Failure(Error.TypeMismatch)
         }
         return Resolution.Success(
             AgentFileReference(
-                displayName = canonicalPath.substringAfterLast('/').ifBlank {
-                    if (canonicalPath == SHARED_STORAGE_ROOT) "内部存储" else "临时目录"
-                },
+                displayName = canonicalPath.substringAfterLast('/').ifBlank { canonicalPath },
                 absolutePath = canonicalPath,
                 kind = kind,
             )
@@ -116,7 +112,6 @@ internal class AgentFileReferenceGateway(
     internal enum class Error {
         UnsupportedDocumentProvider,
         InvalidPath,
-        OutsideAllowedRoots,
         PathNotFound,
         UnsupportedFileType,
         TypeMismatch,
@@ -132,7 +127,6 @@ internal class AgentFileReferenceGateway(
     internal companion object {
         const val EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY = "com.android.externalstorage.documents"
         const val SHARED_STORAGE_ROOT = "/storage/emulated/0"
-        const val TEMPORARY_ROOT = "/data/local/tmp"
 
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
 
@@ -194,12 +188,6 @@ internal class AgentFileReferenceGateway(
             null
         }
 
-        internal fun isWithinAllowedRoots(path: String): Boolean =
-            path == SHARED_STORAGE_ROOT ||
-                path.startsWith("$SHARED_STORAGE_ROOT/") ||
-                path == TEMPORARY_ROOT ||
-                path.startsWith("$TEMPORARY_ROOT/")
-
         private fun validationCommand(path: String): String {
             val quotedPath = shellQuote(path)
             return buildString {
@@ -207,10 +195,6 @@ internal class AgentFileReferenceGateway(
                 append("eta_path=\$(readlink -f ").append(quotedPath).append(" 2>/dev/null) || exit ")
                 append(EXIT_PATH_NOT_FOUND).append("; ")
                 append("[ -n \"\$eta_path\" ] || exit ").append(EXIT_PATH_NOT_FOUND).append("; ")
-                append("case \"\$eta_path\" in ")
-                append(SHARED_STORAGE_ROOT).append('|').append(SHARED_STORAGE_ROOT).append("/*|")
-                append(TEMPORARY_ROOT).append('|').append(TEMPORARY_ROOT).append("/*) ;; ")
-                append("*) exit ").append(EXIT_OUTSIDE_ALLOWED_ROOTS).append(" ;; esac; ")
                 append("if [ -f \"\$eta_path\" ]; then eta_kind=").append(KIND_FILE).append("; ")
                 append("elif [ -d \"\$eta_path\" ]; then eta_kind=").append(KIND_DIRECTORY).append("; ")
                 append("else exit ").append(EXIT_UNSUPPORTED_TYPE).append("; fi; ")
@@ -224,7 +208,6 @@ internal class AgentFileReferenceGateway(
         private const val KIND_DIRECTORY = "directory"
         private const val EXIT_ROOT_UNAVAILABLE = 20
         private const val EXIT_PATH_NOT_FOUND = 21
-        private const val EXIT_OUTSIDE_ALLOWED_ROOTS = 22
         private const val EXIT_UNSUPPORTED_TYPE = 23
         private const val VALIDATION_TIMEOUT_MS = 5_000L
         private const val MAX_VALIDATION_OUTPUT_BYTES = 8 * 1024

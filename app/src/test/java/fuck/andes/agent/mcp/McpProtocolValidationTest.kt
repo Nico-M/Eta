@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import fuck.andes.data.model.McpProtocolMode
 import fuck.andes.data.model.McpServerSetting
+import fuck.andes.data.model.McpToolDefinition
 import java.net.InetSocketAddress
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -338,21 +339,85 @@ data: "id":1,"result":{"resultType":"complete","ttlMs":1000,"tools":[]}}
     }
 
     @Test
-    fun toolSchemaAcceptsObjectSubset() {
+    fun modernDiscoveryKeepsSchemaKeywordsWithoutAvailabilityGate() {
         val schema = JSONObject(
-            """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""
+            """{"type":"object","anyOf":[{"required":["query"]},{"required":["filter"]}],"properties":{"query":{"${'$'}ref":"#/${'$'}defs/query"}},"${'$'}defs":{"query":{"type":"string"}}}"""
         )
+        val server = localServer { exchange ->
+            exchange.respond(
+                200,
+                JSONObject()
+                    .put("jsonrpc", "2.0")
+                    .put("id", 1)
+                    .put(
+                        "result",
+                        JSONObject()
+                            .put("resultType", "complete")
+                            .put("ttlMs", 1_000)
+                            .put(
+                                "tools",
+                                org.json.JSONArray().put(
+                                    JSONObject()
+                                        .put("name", "search notes / advanced")
+                                        .put("inputSchema", schema)
+                                )
+                            )
+                    )
+                    .toString(),
+            )
+        }
+        try {
+            val configured = McpServerSetting(id = "test", name = "Test", url = server.url())
+            val tool = McpHttpClient(configured, bearerToken = null).use {
+                it.discoverTools().tools.single()
+            }
 
-        assertNull(validateToolDefinition("search.notes", schema))
+            assertEquals("search notes / advanced", tool.name)
+            assertEquals(schema.toString(), tool.inputSchemaJson)
+        } finally {
+            server.stop(0)
+        }
     }
 
     @Test
-    fun toolSchemaRejectsUnsupportedCompositionAndHeaders() {
-        val composed = JSONObject("""{"type":"object","oneOf":[]}""")
-        val header = JSONObject("""{"type":"object","properties":{"token":{"x-mcp-header":"X-Token"}}}""")
+    fun modernToolCallMirrorsAnnotatedParameters() {
+        val nameHeader = AtomicReference<String>()
+        val regionHeader = AtomicReference<String>()
+        val pageHeader = AtomicReference<String>()
+        val server = localServer { exchange ->
+            nameHeader.set(exchange.requestHeaders.getFirst("Mcp-Name"))
+            regionHeader.set(exchange.requestHeaders.getFirst("Mcp-Param-Region"))
+            pageHeader.set(exchange.requestHeaders.getFirst("Mcp-Param-Page"))
+            exchange.respond(
+                200,
+                """{"jsonrpc":"2.0","id":1,"result":{"resultType":"complete","content":[]}}""",
+            )
+        }
+        try {
+            val configured = McpServerSetting(
+                id = "test",
+                name = "Test",
+                url = server.url(),
+                lastProtocolVersion = McpProtocolMode.LATEST,
+            )
+            val tool = McpToolDefinition(
+                name = "执行任务",
+                inputSchemaJson = """{"type":"object","properties":{"region":{"type":"string","x-mcp-header":"Region"},"page":{"type":"integer","x-mcp-header":"Page"}}}""",
+            )
 
-        assertEquals("暂不支持 schema 关键字 oneOf", validateToolDefinition("search", composed))
-        assertEquals("暂不支持 schema 关键字 x-mcp-header", validateToolDefinition("search", header))
+            McpHttpClient(configured, bearerToken = null).use { client ->
+                client.callTool(
+                    tool,
+                    JSONObject().put("region", "华东").put("page", 42),
+                )
+            }
+
+            assertEquals(encodeMcpHeaderValue("执行任务"), nameHeader.get())
+            assertEquals(encodeMcpHeaderValue("华东"), regionHeader.get())
+            assertEquals("42", pageHeader.get())
+        } finally {
+            server.stop(0)
+        }
     }
 
     private fun localServer(handler: (HttpExchange) -> Unit): HttpServer =

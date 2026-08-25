@@ -98,7 +98,6 @@ internal class AgentLocalTools(
         linuxRootfsPath = AlpineEnvironmentPaths.rootfsDir(context).absolutePath,
     )
     private val publishedObservation = AtomicReference(PublishedObservation())
-    private val clockMutationFingerprints = ConcurrentHashMap.newKeySet<String>()
     private val runAvailableSkillIds = runAvailableSkillIds
         .mapTo(mutableSetOf(), SkillParser::normalizeSkillLookup)
     private val mutatedSkillIds = ConcurrentHashMap.newKeySet<String>()
@@ -120,27 +119,8 @@ internal class AgentLocalTools(
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
         runCatching {
             val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
-            ToolArgumentContract.validate(toolCall.name, args)?.let { issue ->
-                return@runCatching textResult(
-                    errorResult(
-                        code = "INVALID_ARGUMENT",
-                        message = issue.message,
-                    ),
-                )
-            }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }
-            if (
-                toolCall.name in CLOCK_MUTATION_TOOLS &&
-                !clockMutationFingerprints.add("${toolCall.name}:${args}")
-            ) {
-                return@runCatching textResult(
-                    errorResult(
-                        "CLOCK_RETRY_BLOCKED",
-                        "本轮已提交过完全相同的时钟操作；为避免重复创建，禁止自动重试",
-                    ),
-                )
-            }
             when (val decision = beforeToolExecution(toolCall.name)) {
                 ToolExecutionDecision.Allow -> Unit
                 is ToolExecutionDecision.Reject -> {
@@ -1346,7 +1326,6 @@ internal class AgentLocalTools(
         val DEVICE_TOOL_NAMES =
             DEVICE_DIRECT_TOOL_NAMES + DEVICE_SENSITIVE_READ_TOOL_NAMES +
                 DEVICE_SENSITIVE_ACTION_TOOL_NAMES
-        val CLOCK_MUTATION_TOOLS = setOf("set_alarm", "set_timer")
         val MEMORY_TOOL_NAMES = setOf("memory_get", "memory_write")
     }
 }
