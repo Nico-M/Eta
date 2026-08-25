@@ -120,7 +120,7 @@ class EtaRecognitionService : RecognitionService() {
         }
 
         override fun onLanguageDetection(results: Bundle) {
-            runCatching { callback.languageDetection(results) }
+            @Suppress("NewApi") runCatching { callback.languageDetection(results) }
         }
     }
 }

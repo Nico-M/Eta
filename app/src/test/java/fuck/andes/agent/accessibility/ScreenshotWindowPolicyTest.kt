@@ -1,6 +1,7 @@
 package fuck.andes.agent.accessibility
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ScreenshotWindowPolicyTest {
@@ -41,6 +42,44 @@ class ScreenshotWindowPolicyTest {
         assertEquals(
             ScreenshotWindowPolicy.Decision.EXCLUDE,
             decide(resolvedPackage = "entry.app", excluded = setOf("entry.app")),
+        )
+    }
+
+    @Test
+    fun `captureMode API 33 no exclusions no overlay returns ROOT_DISPLAY`() {
+        assertEquals(
+            ScreenshotWindowPolicy.CaptureMode.ROOT_DISPLAY,
+            ScreenshotWindowPolicy.captureMode(33, false, false),
+        )
+    }
+
+    @Test
+    fun `captureMode API 33 with exclusions returns null`() {
+        assertNull(
+            ScreenshotWindowPolicy.captureMode(33, true, false),
+        )
+    }
+
+    @Test
+    fun `captureMode API 33 with unsafe overlay returns null`() {
+        assertNull(
+            ScreenshotWindowPolicy.captureMode(33, false, true),
+        )
+    }
+
+    @Test
+    fun `captureMode API 34 plus always returns WINDOWS`() {
+        assertEquals(
+            ScreenshotWindowPolicy.CaptureMode.WINDOWS,
+            ScreenshotWindowPolicy.captureMode(34, false, false),
+        )
+        assertEquals(
+            ScreenshotWindowPolicy.CaptureMode.WINDOWS,
+            ScreenshotWindowPolicy.captureMode(34, true, true),
+        )
+        assertEquals(
+            ScreenshotWindowPolicy.CaptureMode.WINDOWS,
+            ScreenshotWindowPolicy.captureMode(35, false, true),
         )
     }
 

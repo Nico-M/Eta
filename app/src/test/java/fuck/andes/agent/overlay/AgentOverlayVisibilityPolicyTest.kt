@@ -232,4 +232,88 @@ class AgentOverlayVisibilityPolicyTest {
             )
         )
     }
+
+    // ── shouldShowTerminalResultCard ──
+
+    @Test
+    fun `eta_voice with foreground tool does not show terminal result card`() {
+        assertFalse(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "eta_voice",
+                hasExecutedForegroundTool = true,
+            )
+        )
+    }
+
+    @Test
+    fun `eta_voice without foreground tool does not show terminal result card`() {
+        assertFalse(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "eta_voice",
+                hasExecutedForegroundTool = false,
+            )
+        )
+    }
+
+    @Test
+    fun `agent_ui with foreground tool shows terminal result card`() {
+        assertTrue(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "agent_ui",
+                hasExecutedForegroundTool = true,
+            )
+        )
+    }
+
+    @Test
+    fun `breeno with foreground tool shows terminal result card`() {
+        assertTrue(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "breeno",
+                hasExecutedForegroundTool = true,
+            )
+        )
+    }
+
+    @Test
+    fun `xiaoai with foreground tool shows terminal result card`() {
+        assertTrue(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "xiaoai",
+                hasExecutedForegroundTool = true,
+            )
+        )
+    }
+
+    @Test
+    fun `null handoff with foreground tool shows terminal result card`() {
+        assertTrue(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = null,
+                hasExecutedForegroundTool = true,
+            )
+        )
+    }
+
+    @Test
+    fun `any source without foreground tool does not show terminal result card`() {
+        assertFalse(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "agent_ui",
+                hasExecutedForegroundTool = false,
+            )
+        )
+        assertFalse(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = "eta_voice",
+                hasExecutedForegroundTool = false,
+            )
+        )
+        assertFalse(
+            AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(
+                handoffSource = null,
+                hasExecutedForegroundTool = false,
+            )
+        )
+    }
 }

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
 import android.provider.Settings
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -112,20 +113,19 @@ internal object AccessibilityProtectionClient {
         }
 
         try {
-            // Android 14 起广播默认不共享发送者身份；保护后端必须取得真实 UID 才接受请求。
-            val options = BroadcastOptions.makeBasic()
-                .setShareIdentityEnabled(true)
-                .toBundle()
-            context.sendOrderedBroadcast(
-                intent,
-                null,
-                options,
-                resultReceiver,
-                scheduler,
-                AccessibilityProtectionProtocol.RESULT_UNAVAILABLE,
-                null,
-                null,
-            )
+            if (Build.VERSION.SDK_INT >= 34) {
+                sendOrderedBroadcastWithIdentity(context, intent, resultReceiver, scheduler)
+            } else {
+                context.sendOrderedBroadcast(
+                    intent,
+                    null,
+                    resultReceiver,
+                    scheduler,
+                    AccessibilityProtectionProtocol.RESULT_UNAVAILABLE,
+                    null,
+                    null,
+                )
+            }
         } catch (_: RuntimeException) {
             scheduler.post {
                 onResult(
@@ -136,6 +136,28 @@ internal object AccessibilityProtectionClient {
                 )
             }
         }
+    }
+
+    @androidx.annotation.RequiresApi(34)
+    private fun sendOrderedBroadcastWithIdentity(
+        context: Context,
+        intent: Intent,
+        resultReceiver: BroadcastReceiver,
+        scheduler: Handler,
+    ) {
+        val options = BroadcastOptions.makeBasic()
+            .setShareIdentityEnabled(true)
+            .toBundle()
+        context.sendOrderedBroadcast(
+            intent,
+            null,
+            options,
+            resultReceiver,
+            scheduler,
+            AccessibilityProtectionProtocol.RESULT_UNAVAILABLE,
+            null,
+            null,
+        )
     }
 
     data class ControlResult(

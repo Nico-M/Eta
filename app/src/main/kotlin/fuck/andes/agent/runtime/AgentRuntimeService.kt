@@ -354,6 +354,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             session = session,
             result = outcome.result,
             entrySurfaceGuard = outcome.entrySurfaceGuard,
+            handoffSource = request.handoff?.source,
             completedContext = outcome.response?.let { completedResponse ->
                 outcome.completedRequest?.let { completedRequest ->
                     CompletedRunContext(
@@ -364,6 +365,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             },
         )
     }
+
 
     private fun handleAcceptedRunEvent(
         session: AgentRuntimeSession,
@@ -428,6 +430,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         session: AgentRuntimeSession,
         result: AgentRuntimeWire.RunResult,
         entrySurfaceGuard: EntrySurfaceGuard?,
+        handoffSource: String?,
         completedContext: CompletedRunContext? = null,
     ) {
         mainHandler.post {
@@ -443,6 +446,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                             detailText = result.content.trim().ifBlank { state.value.detailText },
                         ),
                         keepVisible = entrySurfaceGuard?.wasTriggered == true,
+                        handoffSource = handoffSource,
                     )
                 } else {
                     enterFinalState(
@@ -456,6 +460,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
                             detailText = result.error.orEmpty(),
                         ),
                         keepVisible = entrySurfaceGuard?.wasTriggered == true,
+                        handoffSource = handoffSource,
                     )
                 }
             }.onFailure { throwable ->
@@ -971,10 +976,14 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
     private fun dpToPx(dp: Int): Int =
         (dp * resources.displayMetrics.density).toInt()
 
-    private fun enterFinalState(finalState: AgentOverlayState, keepVisible: Boolean = false) {
+    private fun enterFinalState(
+        finalState: AgentOverlayState,
+        keepVisible: Boolean = false,
+        handoffSource: String? = null,
+    ) {
         state.value = finalState
 
-        if (hasExecutedForegroundTool) {
+        if (AgentOverlayVisibilityPolicy.shouldShowTerminalResultCard(handoffSource, hasExecutedForegroundTool)) {
             // 撤掉光球和小气泡，改显半屏结果卡片，不自动关闭，用户手动关闭
             collapsed.value = true
             removeAmbientWindows()

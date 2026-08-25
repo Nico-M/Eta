@@ -1061,7 +1061,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
         for (window in captureWindows) {
             runCatching {
-                takeScreenshotOfWindow(window.id, screenshotExecutor, object : TakeScreenshotCallback {
+                @Suppress("NewApi") takeScreenshotOfWindow(window.id, screenshotExecutor, object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         try {
                             val sw = convertToSoftwareBitmap(screenshot)
@@ -1338,7 +1338,7 @@ class AgentAccessibilityService : AccessibilityService() {
                 AccessibilityNodeInfo.ACTION_SCROLL_FORWARD in actions ||
                     AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD in actions
                 ) -> 2
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id in actions -> 1
+            scrollInDirectionId in actions -> 1
             else -> 0
         }
     }
@@ -1378,7 +1378,7 @@ class AgentAccessibilityService : AccessibilityService() {
             return ScrollMethod(exactAction, "ACTION_SCROLL_${direction.name}")
         }
         val pageAction = direction.pageActionId()
-        if (pageAction in actionIds) {
+        if (pageAction != null && pageAction in actionIds) {
             return ScrollMethod(pageAction, "ACTION_PAGE_${direction.name}")
         }
         if (
@@ -1404,8 +1404,8 @@ class AgentAccessibilityService : AccessibilityService() {
                 )
             }
         }
-        val inDirection = AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id
-        if (inDirection in actionIds) {
+        val inDirection = scrollInDirectionId
+        if (inDirection != null && inDirection in actionIds) {
             val args = Bundle().apply {
                 putInt(
                     AccessibilityNodeInfo.ACTION_ARGUMENT_DIRECTION_INT,
@@ -1530,11 +1530,11 @@ class AgentAccessibilityService : AccessibilityService() {
         ScrollDirection.RIGHT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id
     }
 
-    private fun ScrollDirection.pageActionId(): Int = when (this) {
-        ScrollDirection.UP -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id
-        ScrollDirection.DOWN -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id
-        ScrollDirection.LEFT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id
-        ScrollDirection.RIGHT -> AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id
+    private fun ScrollDirection.pageActionId(): Int? = when (this) {
+        ScrollDirection.UP -> pageUpId
+        ScrollDirection.DOWN -> pageDownId
+        ScrollDirection.LEFT -> pageLeftId
+        ScrollDirection.RIGHT -> pageRightId
     }
 
     private fun ScrollDirection.focusDirection(): Int = when (this) {
@@ -2333,31 +2333,67 @@ class AgentAccessibilityService : AccessibilityService() {
                 Thread(runnable, "agent-screenshot-callback").apply { isDaemon = true }
             }
 
-        private val SCROLL_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_IN_DIRECTION.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id,
-        )
-        private val VERTICAL_DIRECTION_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_UP.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_DOWN.id,
-        )
-        private val HORIZONTAL_DIRECTION_ACTION_IDS = setOf(
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_LEFT.id,
-            AccessibilityNodeInfo.AccessibilityAction.ACTION_PAGE_RIGHT.id,
-        )
+        private val scrollInDirectionId: Int? by lazy {
+            runCatching {
+                val field = AccessibilityNodeInfo.AccessibilityAction::class.java.getField("ACTION_SCROLL_IN_DIRECTION")
+                (field.get(null) as AccessibilityNodeInfo.AccessibilityAction).id
+            }.getOrNull()
+        }
+        private val pageUpId: Int? by lazy {
+            runCatching {
+                val field = AccessibilityNodeInfo.AccessibilityAction::class.java.getField("ACTION_PAGE_UP")
+                (field.get(null) as AccessibilityNodeInfo.AccessibilityAction).id
+            }.getOrNull()
+        }
+        private val pageDownId: Int? by lazy {
+            runCatching {
+                val field = AccessibilityNodeInfo.AccessibilityAction::class.java.getField("ACTION_PAGE_DOWN")
+                (field.get(null) as AccessibilityNodeInfo.AccessibilityAction).id
+            }.getOrNull()
+        }
+        private val pageLeftId: Int? by lazy {
+            runCatching {
+                val field = AccessibilityNodeInfo.AccessibilityAction::class.java.getField("ACTION_PAGE_LEFT")
+                (field.get(null) as AccessibilityNodeInfo.AccessibilityAction).id
+            }.getOrNull()
+        }
+        private val pageRightId: Int? by lazy {
+            runCatching {
+                val field = AccessibilityNodeInfo.AccessibilityAction::class.java.getField("ACTION_PAGE_RIGHT")
+                (field.get(null) as AccessibilityNodeInfo.AccessibilityAction).id
+            }.getOrNull()
+        }
+        private val SCROLL_ACTION_IDS: Set<Int> by lazy {
+            buildSet {
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD.id)
+                scrollInDirectionId?.let { add(it) }
+                pageUpId?.let { add(it) }
+                pageDownId?.let { add(it) }
+                pageLeftId?.let { add(it) }
+                pageRightId?.let { add(it) }
+            }
+        }
+        private val VERTICAL_DIRECTION_ACTION_IDS: Set<Int> by lazy {
+            buildSet {
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id)
+                pageUpId?.let { add(it) }
+                pageDownId?.let { add(it) }
+            }
+        }
+        private val HORIZONTAL_DIRECTION_ACTION_IDS: Set<Int> by lazy {
+            buildSet {
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.id)
+                add(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.id)
+                pageLeftId?.let { add(it) }
+                pageRightId?.let { add(it) }
+            }
+        }
 
         private val SERVICE_TOKENS = AtomicLong(0)
         private val SNAPSHOT_IDS = AtomicLong(0)

@@ -62,6 +62,20 @@ internal object AgentImageCodec {
         source: String,
     ): AgentModelClient.ModelImage = AgentModelImageEncoder.screenContext(bitmap, source)
 
+    /** Root 整屏截图的字节解码为屏幕上下文编码，不改变助理入口的有界视觉合同。 */
+    fun fromScreenContextBytes(
+        bytes: ByteArray,
+        source: String,
+    ): AgentModelClient.ModelImage {
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: error("Failed to decode screen context bitmap from $source")
+        return try {
+            AgentModelImageEncoder.screenContext(bitmap, source)
+        } finally {
+            if (!bitmap.isRecycled) bitmap.recycle()
+        }
+    }
+
     /**
      * 为聊天列表生成独立的小预览。模型仍从 [image.reference] 读取原图，预览不会参与模型输入。
      */

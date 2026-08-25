@@ -275,7 +275,7 @@ internal class AccessibilityServiceEnforcer(
 
     private fun createControlReceiver(): BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context, intent: Intent) {
-            val senderUid = sentFromUid
+            @Suppress("NewApi") val senderUid = sentFromUid
             val ordered = isOrderedBroadcast
             val action = intent.action
             val protocolVersion = intent.getIntExtra(

@@ -677,7 +677,9 @@ internal class RootShellDeviceController(
         return inputCommand(command, "open_system_panel")
     }
 
-    private fun captureScreenshot(): ScreenCapture {
+    internal fun captureScreenshot(
+        encoding: ScreenCaptureEncoding = ScreenCaptureEncoding.LOSSLESS,
+    ): ScreenCapture {
         val excludedPackages = screenshotExcludedPackages()
         // 优先用无障碍截图：takeScreenshotOfWindow 逐窗口过滤 TYPE_ACCESSIBILITY_OVERLAY，
         // 天然排除浮层（glow/orb/bubble 等），对 Agent 透明
@@ -771,7 +773,14 @@ internal class RootShellDeviceController(
         }
         val encodeStartedAt = SystemClock.elapsedRealtime()
         val image = runCatching {
-            AgentImageCodec.fromScreenBytes(result.output, source = "screen")
+            when (encoding) {
+                ScreenCaptureEncoding.LOSSLESS -> AgentImageCodec.fromScreenBytes(
+                    result.output, source = "screen"
+                )
+                ScreenCaptureEncoding.SCREEN_CONTEXT -> AgentImageCodec.fromScreenContextBytes(
+                    result.output, source = "screen_context"
+                )
+            }
         }.onFailure { throwable ->
             logger.warn(
                 "Agent device action=encode_screenshot outcome=failed source=root " +
@@ -1265,7 +1274,12 @@ internal class RootShellDeviceController(
         val currentNodes: List<UiNode>,
     )
 
-    private data class ScreenCapture(
+    internal enum class ScreenCaptureEncoding {
+        LOSSLESS,
+        SCREEN_CONTEXT,
+    }
+
+    internal data class ScreenCapture(
         val image: AgentModelClient.ModelImage?,
         val source: String,
         val complete: Boolean,

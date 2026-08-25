@@ -114,7 +114,7 @@ internal object ColorDirectHooks {
 
     private fun finishColorDirectActivity(activity: Activity) {
         activity.finishAndRemoveTask()
-        activity.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        @Suppress("NewApi") activity.overrideActivityTransition(Activity.OVERRIDE_TRANSITION_CLOSE, 0, 0)
     }
 
     private fun isDoubleFingerCollectIntent(intent: Intent?, startInfoClass: Class<*>?): Boolean {

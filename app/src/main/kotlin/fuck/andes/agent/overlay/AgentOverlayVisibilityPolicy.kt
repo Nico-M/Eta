@@ -53,6 +53,16 @@ internal object AgentOverlayVisibilityPolicy {
             event is AgentEvent.ToolStarted &&
             event.name.isForegroundOperationTool()
 
+    /**
+     * 决定运行终态是否显示半屏结果卡。
+     * 只有执行过前台工具、且入口不是 eta_voice 时才显示结果卡；
+     * eta_voice 入口由 EtaAssistantOverlayService 恢复自己的小窗口，不叠加结果卡。
+     */
+    internal fun shouldShowTerminalResultCard(
+        handoffSource: String?,
+        hasExecutedForegroundTool: Boolean,
+    ): Boolean = hasExecutedForegroundTool && handoffSource != "eta_voice"
+
     private fun String?.isForegroundOperationTool(): Boolean =
         this?.trim()?.lowercase() in foregroundOperationTools
 
