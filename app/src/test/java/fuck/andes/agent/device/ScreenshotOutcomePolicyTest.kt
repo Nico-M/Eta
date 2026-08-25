@@ -21,6 +21,13 @@ class ScreenshotOutcomePolicyTest {
         assertFalse(ScreenshotOutcomePolicy.mayFallbackToRoot(false, true))
     }
 
+    @Test
+    fun `supports accessibility window capture only from API 34`() {
+        assertFalse(ScreenshotOutcomePolicy.supportsAccessibilityWindowCapture(33))
+        assertTrue(ScreenshotOutcomePolicy.supportsAccessibilityWindowCapture(34))
+        assertTrue(ScreenshotOutcomePolicy.supportsAccessibilityWindowCapture(35))
+    }
+
     private fun classify(requested: Boolean, image: Boolean, complete: Boolean): ScreenshotQuality =
         ScreenshotOutcomePolicy.classify(requested, image, complete)
 }

@@ -26,6 +26,7 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import androidx.annotation.RequiresApi
 import fuck.andes.agent.device.ScrollAxis
 import fuck.andes.agent.device.ScrollAxisContract
 import fuck.andes.agent.device.ScrollDirection
@@ -947,6 +948,7 @@ class AgentAccessibilityService : AccessibilityService() {
      * 从 agent-runtime 子线程调用；takeScreenshotOfWindow 内部 post 到主线程，
      * callback 在有界后台线程执行位图复制，latch 只阻塞 agent-runtime 工作线程。
      */
+    @RequiresApi(34)
     fun captureScreenshotExcludingOverlays(
         excludedPackages: Set<String> = emptySet(),
         onWindowsSubmitted: (() -> Unit)? = null,
@@ -1061,7 +1063,7 @@ class AgentAccessibilityService : AccessibilityService() {
 
         for (window in captureWindows) {
             runCatching {
-                @Suppress("NewApi") takeScreenshotOfWindow(window.id, screenshotExecutor, object : TakeScreenshotCallback {
+                takeScreenshotOfWindow(window.id, screenshotExecutor, object : TakeScreenshotCallback {
                     override fun onSuccess(screenshot: ScreenshotResult) {
                         try {
                             val sw = convertToSoftwareBitmap(screenshot)

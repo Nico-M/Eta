@@ -322,12 +322,10 @@ private fun BoxScope.AssistantPanel(
     var draggedHeightPx by remember { mutableStateOf<Float?>(null) }
     var dismissPullPx by remember { mutableFloatStateOf(0f) }
     var handoffPullPx by remember { mutableFloatStateOf(0f) }
-    var directHandoffPullPx by remember { mutableFloatStateOf(0f) }
     var thresholdHapticSent by remember { mutableStateOf(false) }
     var handoffRunning by remember { mutableStateOf(false) }
     var keepBottomAnchored by remember { mutableStateOf(true) }
     val handoffThresholdPx = with(density) { 72.dp.toPx() }
-    val directHandoffThresholdPx = with(density) { 48.dp.toPx() }
     val dismissThresholdPx = with(density) { 92.dp.toPx() }
     val handoffVelocityPx = with(density) { 900.dp.toPx() }
     val hasMessages = state.messages.isNotEmpty()
@@ -362,29 +360,20 @@ private fun BoxScope.AssistantPanel(
     )
     val nearFullscreen = sheetHeightPx >= maxContentHeightPx * 0.88f
     val handoffReady = canOpenConversation && nearFullscreen &&
-        (handoffPullPx >= handoffThresholdPx ||
-            directHandoffPullPx >= directHandoffThresholdPx)
+        handoffPullPx >= handoffThresholdPx
     val sheetTranslationPx = dismissPullPx * 0.28f - handoffPullPx.coerceAtMost(
         with(density) { 28.dp.toPx() },
     ) * 0.12f
 
     LaunchedEffect(hasMessages, baseContentHeightPx, maxContentHeightPx) {
-        settledHeightPx = if (hasMessages) {
-            settledHeightPx.coerceIn(baseContentHeightPx, maxContentHeightPx)
-        } else {
-            0f
-        }
+        settledHeightPx = if (hasMessages) settledHeightPx.coerceIn(baseContentHeightPx, maxContentHeightPx) else 0f
     }
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) keepBottomAnchored = true
-    }
+    LaunchedEffect(state.messages.size) { if (state.messages.isNotEmpty()) keepBottomAnchored = true }
     LaunchedEffect(handoffReady) {
         if (handoffReady && !thresholdHapticSent) {
             thresholdHapticSent = true
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        } else if (!handoffReady) {
-            thresholdHapticSent = false
-        }
+        } else if (!handoffReady) thresholdHapticSent = false
     }
 
     fun triggerHandoff() {
@@ -392,10 +381,7 @@ private fun BoxScope.AssistantPanel(
         handoffRunning = true
         settledHeightPx = maxContentHeightPx
         draggedHeightPx = null
-        scope.launch {
-            delay(120)
-            onOpenConversation()
-        }
+        scope.launch { delay(120); onOpenConversation() }
     }
 
     fun dragBy(deltaY: Float): Float {
@@ -403,100 +389,46 @@ private fun BoxScope.AssistantPanel(
         val current = draggedHeightPx ?: currentAnimatedHeight.value
         val requested = current - deltaY
         return when {
-            requested > maxContentHeightPx -> {
-                draggedHeightPx = maxContentHeightPx
-                if (deltaY < 0f) handoffPullPx += -deltaY
-                deltaY
-            }
-            requested < baseContentHeightPx -> {
-                draggedHeightPx = baseContentHeightPx
-                if (deltaY > 0f) dismissPullPx += deltaY
-                deltaY
-            }
-            else -> {
-                draggedHeightPx = requested
-                dismissPullPx = 0f
-                handoffPullPx = 0f
-                deltaY
-            }
+            requested > maxContentHeightPx -> { draggedHeightPx = maxContentHeightPx; if (deltaY < 0f) handoffPullPx += -deltaY; deltaY }
+            requested < baseContentHeightPx -> { draggedHeightPx = baseContentHeightPx; if (deltaY > 0f) dismissPullPx += deltaY; deltaY }
+            else -> { draggedHeightPx = requested; dismissPullPx = 0f; handoffPullPx = 0f; deltaY }
         }
     }
 
-    fun finishDrag(velocityY: Float = 0f) {
+    fun finishDrag(velocityY: Float = 0f, allowHandoff: Boolean) {
         val current = draggedHeightPx ?: currentAnimatedHeight.value
         when {
             dismissPullPx >= dismissThresholdPx -> onClose()
-            canOpenConversation && current >= maxContentHeightPx * 0.88f &&
-                (handoffReady || velocityY <= -handoffVelocityPx) -> triggerHandoff()
+            allowHandoff && canOpenConversation && current >= maxContentHeightPx * 0.88f && (handoffReady || velocityY <= -handoffVelocityPx) -> triggerHandoff()
             else -> {
-                val medium = baseContentHeightPx +
-                    (maxContentHeightPx - baseContentHeightPx) * 0.58f
-                val anchors = floatArrayOf(baseContentHeightPx, medium, maxContentHeightPx)
-                settledHeightPx = anchors.minBy { kotlin.math.abs(it - current) }
-                draggedHeightPx = null
-                dismissPullPx = 0f
-                handoffPullPx = 0f
+                val medium = baseContentHeightPx + (maxContentHeightPx - baseContentHeightPx) * 0.58f
+                settledHeightPx = floatArrayOf(baseContentHeightPx, medium, maxContentHeightPx).minBy { kotlin.math.abs(it - current) }
+                draggedHeightPx = null; dismissPullPx = 0f; handoffPullPx = 0f
             }
         }
     }
 
     val dragByState = rememberUpdatedState<(Float) -> Float>(::dragBy)
-    val finishDragState = rememberUpdatedState<(Float) -> Unit>(::finishDrag)
-    val nestedScrollConnection = remember(
-        baseContentHeightPx,
-        maxContentHeightPx,
-        canOpenConversation,
-        listState,
-    ) {
+    val finishDragState = rememberUpdatedState<(Float, Boolean) -> Unit>(::finishDrag)
+    val nestedScrollConnection = remember(baseContentHeightPx, maxContentHeightPx, canOpenConversation, listState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 val current = draggedHeightPx ?: currentAnimatedHeight.value
-                if (
-                    available.y < 0f &&
-                    canOpenConversation &&
-                    current >= maxContentHeightPx * 0.88f
-                ) {
-                    directHandoffPullPx += -available.y
-                    if (directHandoffPullPx >= directHandoffThresholdPx) {
-                        triggerHandoff()
-                    }
-                    // 第二段上滑由父容器在 pre-scroll 阶段完整消费，避免列表或
-                    // overscroll 先截走事件后，接管手势永远达不到阈值。
-                    return Offset(0f, available.y)
-                }
                 val shouldResize = (available.y < 0f && current < maxContentHeightPx) ||
                     (available.y > 0f && current > baseContentHeightPx && !listState.canScrollBackward)
-                return if (shouldResize) {
-                    Offset(0f, dragByState.value(available.y))
-                } else {
-                    Offset.Zero
-                }
+                return if (shouldResize) Offset(0f, dragByState.value(available.y)) else Offset.Zero
             }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (available.y == 0f) return Offset.Zero
                 val current = draggedHeightPx ?: currentAnimatedHeight.value
-                val atUpperEdge = available.y < 0f && current >= maxContentHeightPx * 0.88f
                 val atLowerEdge = available.y > 0f && current <= baseContentHeightPx
-                return if (atUpperEdge || atLowerEdge) {
-                    Offset(0f, dragByState.value(available.y))
-                } else {
-                    Offset.Zero
-                }
+                return if (atLowerEdge) Offset(0f, dragByState.value(available.y)) else Offset.Zero
             }
-
             override suspend fun onPreFling(available: Velocity): Velocity {
-                finishDragState.value(available.y)
-                return Velocity.Zero
+                finishDragState.value(available.y, false); return Velocity.Zero
             }
-
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                finishDragState.value(available.y)
-                return Velocity.Zero
+                finishDragState.value(available.y, false); return Velocity.Zero
             }
         }
     }
@@ -533,8 +465,8 @@ private fun BoxScope.AssistantPanel(
                             change.consume()
                             dragBy(dragAmount)
                         },
-                        onDragEnd = { finishDrag() },
-                        onDragCancel = { finishDrag() },
+                        onDragEnd = { finishDrag(allowHandoff = true) },
+                        onDragCancel = { finishDrag(allowHandoff = true) },
                     )
                 },
             )

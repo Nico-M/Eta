@@ -23,4 +23,5 @@ internal object ScreenshotOutcomePolicy {
         excludedPackagesPresent: Boolean,
         criticalWindowMissing: Boolean,
     ): Boolean = !excludedPackagesPresent && !criticalWindowMissing
+    fun supportsAccessibilityWindowCapture(sdkInt: Int): Boolean = sdkInt >= 34
 }

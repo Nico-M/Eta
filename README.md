@@ -1,5 +1,9 @@
 # Eta
 
+> [!IMPORTANT]
+> 本仓库基于 [Mangi-11/Eta](https://github.com/Mangi-11/Eta)，不是上游仓库的原始副本。当前版本在上游基础上针对 Android 13（API 33）及相关系统入口进行了适配和修复，主要包括 Android 13 兼容性处理、系统助手与语音入口行为调整、截图链路修复，以及对应的测试和构建验证。后续使用、排查问题或同步代码时，请以本仓库的实际改动为准，并注意与上游版本之间可能存在差异。
+
+
 **简体中文** | [English](README_EN.md)
 
 <p><img src="https://img.shields.io/badge/Kotlin-2.4.0-7F52FF?logo=kotlin&amp;logoColor=white" alt="Kotlin 2.4.0"> <img src="https://img.shields.io/badge/AGP-9.3.1-3DDC84?logo=android&amp;logoColor=white" alt="AGP 9.3.1"> <img src="https://img.shields.io/badge/minSdk-33-3DDC84?logo=android&amp;logoColor=white" alt="minSdk 33"> <img src="https://img.shields.io/badge/Assistant%20Integrations-ColorOS%20%26%20HyperOS-1677FF" alt="Assistant integrations for ColorOS and HyperOS"></p>

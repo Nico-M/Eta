@@ -9,6 +9,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import java.io.IOException
 import java.io.StringReader
@@ -684,7 +685,11 @@ internal class RootShellDeviceController(
         // 优先用无障碍截图：takeScreenshotOfWindow 逐窗口过滤 TYPE_ACCESSIBILITY_OVERLAY，
         // 天然排除浮层（glow/orb/bubble 等），对 Agent 透明
         val service = AgentAccessibilityService.current()
-        if (service != null) {
+        if (
+            service != null &&
+            Build.VERSION.SDK_INT >= 34 &&
+            ScreenshotOutcomePolicy.supportsAccessibilityWindowCapture(Build.VERSION.SDK_INT)
+        ) {
             val captureStartedAt = SystemClock.elapsedRealtime()
             val result = runCatching {
                 service.captureScreenshotExcludingOverlays(excludedPackages)

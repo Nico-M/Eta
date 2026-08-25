@@ -931,16 +931,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             PendingIntent.FLAG_CANCEL_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             creatorOptions.toBundle(),
         )
-        @Suppress("NewApi")
-        val senderOptions = ActivityOptions.makeBasic().apply {
-            pendingIntentBackgroundActivityStartMode =
-                if (Build.VERSION.SDK_INT >= 36) {
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE
-                } else {
-                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
-                }
-        }
-        @Suppress("NewApi") runCatching { pendingIntent.send(senderOptions.toBundle()) }
+        @Suppress("NewApi") runCatching { pendingIntent.send(EtaAssistantActivityOptions.senderOptions()) }
             .onFailure {
                 handoffInProgress = false
                 AndroidAgentLogger.warn("Eta assistant handoff activity launch failed")
