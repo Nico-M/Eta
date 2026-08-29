@@ -494,7 +494,6 @@ internal fun SettingsScreen(
                 Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
                     ArrowPreference(
                         title = stringResource(R.string.appearance_title),
-                        summary = stringResource(R.string.appearance_summary),
                         startAction = {
                             TintedIcon(
                                 icon = LucideR.drawable.lucide_ic_palette,
@@ -502,6 +501,17 @@ internal fun SettingsScreen(
                             )
                         },
                         onClick = { onNavigate(AppRoute.AppearanceSettings) },
+                    )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.data_backup_title),
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_file_text,
+                                tint = ColorOSVividGreen,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.DataBackup) },
                     )
                 }
             }

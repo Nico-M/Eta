@@ -44,7 +44,6 @@
   <string name="route_new_provider">New provider</string>
   <string name="settings_general">General</string>
   <string name="appearance_title">Appearance &amp; Theme</string>
-  <string name="appearance_summary">Colors, blur effects, interface scale, and back gestures</string>
   <string name="appearance_group_color">Colors &amp; Theme</string>
   <string name="appearance_group_interface">Interface &amp; Effects</string>
   <string name="appearance_theme_mode">Theme mode</string>
@@ -1054,4 +1053,19 @@
   <string name="mcp_delete_confirm">Delete %1$s? This cannot be undone.</string>
   <string name="mcp_read_only_tool">Read-only tool</string>
   <string name="mcp_may_modify_data">May modify data or call an external service</string>
+  <string name="data_backup_title">Data backup</string>
+  <string name="data_backup_actions">Backup</string>
+  <string name="data_backup_warning_title">Keep the backup file safe</string>
+  <string name="data_backup_warning_summary">The file contains provider API keys. It only includes conversations, model providers, and MEMORY.md.</string>
+  <string name="data_backup_export">Export data</string>
+  <string name="data_backup_export_summary">Save conversations, providers, and MEMORY.md to a JSON file</string>
+  <string name="data_backup_import">Import data</string>
+  <string name="data_backup_import_summary">Replace conversations, providers, and MEMORY.md from a backup file</string>
+  <string name="data_backup_import_confirm_title">Import Eta data?</string>
+  <string name="data_backup_import_confirm_summary">Current conversations, providers, and MEMORY.md will be replaced. The backup may contain API keys.</string>
+  <string name="data_backup_working">Working…</string>
+  <string name="data_backup_exported">Exported %1$d conversations and %2$d providers</string>
+  <string name="data_backup_imported">Imported %1$d conversations and %2$d providers</string>
+  <string name="data_backup_failed">Backup operation failed</string>
+  <string name="data_backup_file_open_failed">Unable to open the selected file</string>
 </resources>

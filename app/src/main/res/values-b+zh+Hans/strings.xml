@@ -43,7 +43,6 @@
   <string name="route_new_provider">新建提供商</string>
   <string name="settings_general">通用</string>
   <string name="appearance_title">外观与主题</string>
-  <string name="appearance_summary">颜色、模糊效果与界面缩放，返回手势</string>
   <string name="appearance_group_color">颜色与主题</string>
   <string name="appearance_group_interface">界面与效果</string>
   <string name="appearance_theme_mode">主题模式</string>
@@ -1038,4 +1037,19 @@
   <string name="mcp_delete_confirm">删除 %1$s？此操作无法撤销。</string>
   <string name="mcp_read_only_tool">只读工具</string>
   <string name="mcp_may_modify_data">可能修改数据或访问外部服务</string>
+  <string name="data_backup_title">数据备份</string>
+  <string name="data_backup_actions">备份</string>
+  <string name="data_backup_warning_title">请妥善保管备份文件</string>
+  <string name="data_backup_warning_summary">文件包含模型提供商 API Key，仅包含对话、模型提供商和 MEMORY.md。</string>
+  <string name="data_backup_export">导出数据</string>
+  <string name="data_backup_export_summary">将对话、模型提供商和 MEMORY.md 保存为 JSON 文件</string>
+  <string name="data_backup_import">导入数据</string>
+  <string name="data_backup_import_summary">从备份文件替换对话、模型提供商和 MEMORY.md</string>
+  <string name="data_backup_import_confirm_title">导入 Eta 数据？</string>
+  <string name="data_backup_import_confirm_summary">当前对话、模型提供商和 MEMORY.md 将被替换，备份文件可能包含 API Key。</string>
+  <string name="data_backup_working">处理中…</string>
+  <string name="data_backup_exported">已导出 %1$d 个对话和 %2$d 个模型提供商</string>
+  <string name="data_backup_imported">已导入 %1$d 个对话和 %2$d 个模型提供商</string>
+  <string name="data_backup_failed">备份操作失败</string>
+  <string name="data_backup_file_open_failed">无法打开所选文件</string>
 </resources>

@@ -6,7 +6,9 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import fuck.andes.data.model.ReasoningEffort
+import kotlinx.serialization.Serializable
 
+@Serializable
 @Entity(tableName = "conversations")
 internal data class ConversationEntity(
     @PrimaryKey val id: String,
@@ -30,6 +32,7 @@ internal data class ConversationMetadata(
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
 )
 
+@Serializable
 @Entity(
     tableName = "conversation_context_checkpoints",
     foreignKeys = [
@@ -47,6 +50,7 @@ internal data class ConversationContextCheckpointEntity(
     @ColumnInfo(name = "history_json") val historyJson: String,
 )
 
+@Serializable
 @Entity(tableName = "conversation_state")
 internal data class ConversationStateEntity(
     @PrimaryKey val id: String = SINGLETON_ID,
@@ -57,6 +61,7 @@ internal data class ConversationStateEntity(
     }
 }
 
+@Serializable
 @Entity(
     tableName = "conversation_messages",
     foreignKeys = [

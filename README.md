@@ -110,6 +110,7 @@ Gemini 解锁与一圈即搜是 Eta 早期建立的 Google 能力解锁功能，
 - **内置提供商**：OpenAI、Anthropic、阿里百炼、DeepSeek、Kimi、MiMo、MiniMax、StepFun、硅基流动、OpenRouter
 - **自定义提供商**：自定义 HTTP/HTTPS Base URL、API Key、请求头与 body JSON；HTTP 会明文传输 API Key、提示词与模型内容
 - **模型管理**：内置官方目录、远程拉取、自定义模型与模糊搜索；可覆盖上下文长度与思考档位，本地覆盖始终优先于后续远程同步；各提供商分别记忆上次选择的模型
+- **数据备份**：设置页可导出或导入对话、模型提供商配置与 `MEMORY.md`，用于更换包名或迁移设备；备份文件包含 Provider API Key，请妥善保管
 
 BYOK（Bring Your Own Key）意味着 Agent 能力跟随你选择的模型，而不是被单一内置服务商限制。
 

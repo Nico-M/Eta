@@ -188,6 +188,7 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.SystemEnhance -> stringResource(R.string.route_system_enhancements)
     is AppRoute.Settings -> stringResource(R.string.route_settings)
     is AppRoute.AppearanceSettings -> stringResource(R.string.appearance_title)
+    is AppRoute.DataBackup -> stringResource(R.string.data_backup_title)
     is AppRoute.Memory -> stringResource(R.string.route_memory)
     is AppRoute.LinuxEnvironment -> stringResource(R.string.route_linux_environment)
     is AppRoute.ModelProviders -> stringResource(R.string.route_model_providers)

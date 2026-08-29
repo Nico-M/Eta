@@ -18,6 +18,12 @@ internal interface ProviderDao {
     @Query("SELECT * FROM model_providers ORDER BY sort_order ASC")
     suspend fun providers(): List<ProviderWithModels>
 
+    @Query("DELETE FROM provider_models")
+    suspend fun deleteAllModels()
+
+    @Query("DELETE FROM model_providers")
+    suspend fun deleteAllProviders()
+
     @Transaction
     @Query("SELECT * FROM model_providers WHERE id = :id")
     suspend fun providerById(id: String): ProviderWithModels?
@@ -91,6 +97,13 @@ internal interface ProviderDao {
                 upsertModels(seed.models)
             }
         }
+    }
+
+    @Transaction
+    suspend fun replaceAll(providers: List<ProviderWithModelsSeed>) {
+        deleteAllModels()
+        deleteAllProviders()
+        insertProvidersWithModels(providers)
     }
 }
 

@@ -65,6 +65,7 @@ import fuck.andes.ui.navigation.AgentNavigator
 import fuck.andes.ui.navigation.AppRoute
 import fuck.andes.ui.screens.chat.AgentChatScreen
 import fuck.andes.ui.screens.browser.AgentBrowserScreen
+import fuck.andes.ui.screens.backup.DataBackupScreen
 import fuck.andes.ui.screens.enhance.SystemEnhanceScreen
 import fuck.andes.ui.screens.home.AgentHomeScreen
 import fuck.andes.ui.screens.memory.AgentMemoryScreen
@@ -462,6 +463,14 @@ fun AgentAppRoot(
             }
             entry<AppRoute.AppearanceSettings>(swipeDismiss = swipeDismiss) {
                 AppearanceSettingsScreen(onBack = ::popRoute)
+            }
+            entry<AppRoute.DataBackup>(swipeDismiss = swipeDismiss) {
+                DataBackupScreen(
+                    context = context,
+                    onBack = ::popRoute,
+                    onExport = agentState::exportBackup,
+                    onImport = agentState::importBackup,
+                )
             }
             entry<AppRoute.Memory>(swipeDismiss = swipeDismiss) {
                 LaunchedEffect(Unit) {
