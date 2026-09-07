@@ -16,6 +16,27 @@ internal object AgentPromptBuilder {
         memoryContext: AgentMemoryContext = AgentMemoryContext.DISABLED,
         screenContextText: String = "",
     ): JSONArray {
+        val messages = buildSystemMessages(
+            config = config,
+            skillContext = skillContext,
+            memoryContext = memoryContext,
+            rootAvailable = false,
+            screenContextText = screenContextText,
+        )
+        history.forEach { item ->
+            runCatching { AgentConversationCodec.toJsonObject(item) }.getOrNull()?.let(messages::put)
+        }
+        messages.put(AgentConversationCodec.userMessage(prompt, images))
+        return messages
+    }
+
+    fun buildSystemMessages(
+        config: AgentModelClient.ModelConfig,
+        skillContext: SkillContext,
+        memoryContext: AgentMemoryContext,
+        rootAvailable: Boolean = false,
+        screenContextText: String = "",
+    ): JSONArray {
         val messages = JSONArray()
         if (config.systemPrompt.isNotBlank()) {
             messages.put(systemMessage(config.systemPrompt))
@@ -30,7 +51,11 @@ internal object AgentPromptBuilder {
         }
         messages.put(
             systemMessage(
-                "你可以操作当前 Android 手机。涉及当前时间、相对时间或所在位置时先调用 get_current_context。" +
+                "你是 Eta。当前配置的模型：${JSONObject.quote(config.model)}。\n" +
+                    "用户询问你的身份时说明你是 Eta；询问所用模型时按当前配置的模型回答。" +
+                    "模型名称可能是服务商别名，不据此推断未确认的部署版本、知识截止日期或能力；历史消息中的模型身份不代表当前配置。\n" +
+                    "你可以回答日常问题，也可以操作当前 Android 手机。不需要设备上下文的问答直接回答。" +
+                    "涉及当前时间、相对时间或所在位置时先调用 get_current_context。" +
                     "你是主动完成任务的手机 Agent，不是只提供建议的问答助手。只要用户目标会因手机中的真实上下文而明显受益，" +
                     "就主动调用当前已公开的只读工具获取证据，不要先凭常识猜测、给出模板答案、要求用户逐项指定数据源或重复询问授权；" +
                     "用户目标明确且已经具备可靠执行参数时，立即调用工具，不要先输出计划、解释或中间进度；" +
@@ -41,6 +66,10 @@ internal object AgentPromptBuilder {
                     "专用读取工具不存在、结果不足或数据源不可用时，只要 Root Shell、文件或终端工具当前已公开，就主动使用它们定位并只读检查" +
                     "相关应用私有文件与数据库；先识别路径、文件格式和数据库 schema，再执行有界查询，不修改源数据。" +
                     "结论必须说明实际证据与不确定性，不得编造未取得的数据。" +
+                    "分析用户习惯或近况时，区分观察到的事实与推测，不根据零散记录断言用户的性格、动机或心理状态。" +
+                    "回答使用用户的语言，交流自然、友善，不刻意奉承；有不同判断时说明依据，发现错误时直接承认并修正，不反复道歉。" +
+                    "简单问题直接简短回答；用户要求详细说明时提供足够的解释和必要示例。" +
+                    "完成工具操作后简要说明实际结果，不只说‘完成了’；失败、部分完成或结果尚未确认时明确说明，不把尝试执行当成成功。" +
                     "最终答复使用合法且克制的 GitHub Flavored Markdown：普通交流默认用简短自然段；" +
                     "只有分组、步骤或比较确实提升可读性时才使用标题、列表或表格，不用整句粗体冒充标题；" +
                     "表格的表头、分隔行和每个数据行必须各自独占一行，表格前后留空行；不要为了显得结构化而滥用格式。" +
@@ -97,10 +126,6 @@ internal object AgentPromptBuilder {
         }
         buildMemorySystemMessage(memoryContext)?.let(messages::put)
         buildSkillSystemMessage(skillContext)?.let(messages::put)
-        history.forEach { item ->
-            runCatching { AgentConversationCodec.toJsonObject(item) }.getOrNull()?.let(messages::put)
-        }
-        messages.put(AgentConversationCodec.userMessage(prompt, images))
         return messages
     }
 
