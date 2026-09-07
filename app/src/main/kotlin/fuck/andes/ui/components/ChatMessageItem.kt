@@ -671,6 +671,9 @@ private fun AgentMessageBlock(
             copied = false
         }
     }
+    LaunchedEffect(retainedStreamingState, streamingRevealComplete, message.content) {
+        retainedStreamingState?.revealedContent = message.content.takeIf { streamingRevealComplete }
+    }
 
     Column(
         modifier = modifier
@@ -845,6 +848,7 @@ internal class StreamingMarkdownState {
     val parseTargets = Channel<StreamingMarkdownTarget>(Channel.CONFLATED)
     val acceptedContent = arrayOf("")
     var snapshot by mutableStateOf<StreamingGfmSnapshot?>(null)
+    var revealedContent by mutableStateOf<String?>(null)
 }
 
 @Composable
