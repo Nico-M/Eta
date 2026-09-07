@@ -56,7 +56,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             )
             .build()
 
-        val call = AgentHttpClient.client.newCall(httpRequest)
+        val call = AgentHttpClient.modelClient.newCall(httpRequest)
         val binding = runController.register { call.cancel() }
         try {
             runController.throwIfCancelled()
@@ -65,8 +65,8 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 onEvent(ProviderEvent.ResponseHeaders(response.code))
                 runController.throwIfCancelled()
                 if (!response.isSuccessful) {
-                    val errorBody = response.body.string()
-                    error("Anthropic 接口返回 HTTP ${response.code}：${errorBody.compactError()}")
+                    val errorBody = response.peekBody(16_384).string()
+                    throw AgentModelFailure.http(response.code, errorBody)
                 }
                 val assistant = readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
                 onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
@@ -267,7 +267,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             }
         }
         dispatch()
-        if (!sawMessageStop) error("Anthropic SSE 流未正常结束")
+        if (!sawMessageStop) throw AgentModelFailure.incompleteStream("Anthropic SSE 流未正常结束")
 
         return JSONObject()
             .put("role", "assistant")
@@ -410,6 +410,10 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 usage = parseUsage(json.optJSONObject("usage"))
             )
             "message_stop" -> EventResult(messageStop = true)
+            "error" -> throw AgentModelFailure.stream(
+                json.optJSONObject("error") ?: JSONObject(),
+                "Anthropic SSE 返回错误",
+            )
             else -> EventResult()
         }
     }

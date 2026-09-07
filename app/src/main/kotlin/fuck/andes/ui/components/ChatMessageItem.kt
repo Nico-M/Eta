@@ -288,6 +288,7 @@ internal fun ChatMessageItem(
                                 SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
                                 SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
                                 SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
+                                SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
                             },
                         ),
                     )

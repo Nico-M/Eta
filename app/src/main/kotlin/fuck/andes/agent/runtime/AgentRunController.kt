@@ -101,6 +101,18 @@ internal class AgentRunController {
         }
         if (cancelled) throw AgentRunCancelledException()
     }
+    fun awaitRetryDelay(delayMs: Long) {
+        throwIfCancelled()
+        val cancelledLatch = java.util.concurrent.CountDownLatch(1)
+        val binding = register { cancelledLatch.countDown() }
+        try {
+            cancelledLatch.await(delayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            throwIfCancelled()
+        } finally {
+            binding.close()
+        }
+    }
+
 
     fun register(cancel: () -> Unit): ResourceBinding {
         val resource = CancellableResource(cancel)

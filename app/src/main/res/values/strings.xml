@@ -196,6 +196,7 @@
   <string name="system_notice_runtime_failed">Runtime failed</string>
   <string name="conversation_persistence_failed">Couldn’t save the conversation. Please try again.</string>
   <string name="system_notice_interrupted">The run was interrupted. Partial output is preserved; unfinished actions were not retried.</string>
+  <string name="system_notice_model_retry">Model request retry</string>
   <string name="tool_status_unknown">Result unknown</string>
   <string name="voice_listening">Listening…</string>
   <string name="voice_processing">Processing…</string>

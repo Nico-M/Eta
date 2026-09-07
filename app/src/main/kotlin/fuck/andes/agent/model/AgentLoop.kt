@@ -21,6 +21,7 @@ internal class AgentLoop(
     private val runController: AgentRunController,
     private val traceFormatter: AgentTraceFormatter,
     private val onEvent: (AgentEvent) -> Unit,
+    private val modelRetry: AgentModelRetry = AgentModelRetry(),
 ) {
     data class Result(
         val content: String,
@@ -48,30 +49,31 @@ internal class AgentLoop(
         while (true) {
             runController.throwIfCancelled()
             appendPendingSteeringMessage()
-            onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
-
             val reasoningLengthBeforeRound = accumulatedReasoning.length
-            val providerResponse = try {
-                provider.complete(
-                    request = ProviderRequest(
-                        config = config,
-                        messages = messages,
-                        tools = tools,
-                    ),
-                    runController = runController,
-                ) { providerEvent ->
-                    if (
-                        providerEvent is ProviderEvent.BlockDelta &&
-                        providerEvent.kind == AssistantBlockKind.THINKING
-                    ) {
-                        accumulatedReasoning.append(providerEvent.delta)
-                    }
-                    providerEvent.toAgentEvent(round)?.let(onEvent)
-                }
+            val completedRound = try {
+                modelRetry.complete(
+                    initialRound = round,
+                    request = ProviderRequest(config, messages, tools),
+                    provider = provider,
+                    controller = runController,
+                    onEvent = onEvent,
+                    onProviderEvent = { attemptRound, providerEvent ->
+                        if (
+                            providerEvent is ProviderEvent.BlockDelta &&
+                            providerEvent.kind == AssistantBlockKind.THINKING
+                        ) {
+                            accumulatedReasoning.append(providerEvent.delta)
+                        }
+                        providerEvent.toAgentEvent(attemptRound)?.let(onEvent)
+                    },
+                    discardAttemptReasoning = { accumulatedReasoning.setLength(reasoningLengthBeforeRound) },
+                )
             } finally {
-                // 截图只供紧接着的一次推理消费；成功、失败或取消后都不进入后续上下文与归档。
+                // 同一回合的重试仍需原始观察；整个回合结束后才移除截图。
                 discardPendingToolImageMessage()
             }
+            round = completedRound.round
+            val providerResponse = completedRound.response
 
             runController.throwIfCancelled()
             val assistantMessage = providerResponse.assistantMessage

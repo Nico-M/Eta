@@ -7,6 +7,8 @@ import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.ThinkingMessageUi
 import fuck.andes.ui.model.ToolActivityMessageUi
 import fuck.andes.ui.model.ToolActivityStatusUi
+import fuck.andes.ui.model.SystemNoticeMessageUi
+import fuck.andes.ui.model.SystemNoticeCode
 
 internal class AgentRunMessageProjector(
     private val nowElapsedRealtime: () -> Long = { SystemClock.elapsedRealtime() },
@@ -24,6 +26,22 @@ internal class AgentRunMessageProjector(
         index = event.index,
         messages = messages,
     )
+
+    fun scheduleModelRetry(
+        runId: String,
+        event: AgentEvent.ModelRetryScheduled,
+        messages: List<AgentChatMessageUi>,
+    ): List<AgentChatMessageUi> {
+        val finalized = finalizeTextRound(
+            runId, event.round, finalizeThinkingRound(runId, event.round, messages),
+        )
+        val notice = SystemNoticeMessageUi(
+            id = "assistant-$runId-retry-${event.round}",
+            code = SystemNoticeCode.ModelRetry,
+            detail = event.displayMessage,
+        )
+        return finalized.filterNot { it.id == notice.id } + notice
+    }
 
     fun appendTextDelta(
         runId: String,
@@ -421,8 +439,6 @@ internal class AgentRunMessageProjector(
     private fun assistantMessageId(runId: String, round: Int, index: Int): String =
         "${assistantMessagePrefix(runId)}$round-$index"
 
-    private fun assistantMessagePrefix(runId: String): String =
-        "assistant-$runId-"
 
     private fun thinkingMessageId(runId: String, round: Int, index: Int): String =
         "$runId-thinking-$round-$index"
@@ -442,6 +458,42 @@ internal class AgentRunMessageProjector(
 
     private fun toolActivityMessageId(runId: String, round: Int, toolCallId: String): String =
         "$runId-tool-$round-${toolCallId.ifBlank { "unknown" }}"
+    companion object {
+        /** 终态只能补全最后一次重试之后的回答，不能覆盖已标记失败的半截输出。 */
+        fun resultTargetIndex(
+            runId: String,
+            messages: List<AgentChatMessageUi>,
+            includeNotices: Boolean = false,
+        ): Int {
+            val retryIndex = lastRetryIndex(runId, messages)
+            return messages.indices.lastOrNull { index ->
+                val message = messages[index]
+                index > retryIndex &&
+                    (message is AgentMessageUi || includeNotices && message is SystemNoticeMessageUi) &&
+                    isAssistantMessageForRun(message.id, runId)
+            } ?: -1
+        }
+
+        fun resultFallbackId(runId: String, messages: List<AgentChatMessageUi>): String {
+            val retry = messages.getOrNull(lastRetryIndex(runId, messages))
+            if (retry == null) return "assistant-$runId-1"
+            val round = retry.id.substringAfterLast('-').toIntOrNull()?.plus(1) ?: 1
+            return "assistant-$runId-$round-result"
+        }
+
+        private fun lastRetryIndex(runId: String, messages: List<AgentChatMessageUi>): Int =
+            messages.indexOfLast {
+                it is SystemNoticeMessageUi && it.code == SystemNoticeCode.ModelRetry &&
+                    it.id.startsWith("assistant-$runId-retry-")
+            }
+
+        private fun assistantMessagePrefix(runId: String): String =
+            "assistant-$runId-"
+
+        private fun isAssistantMessageForRun(messageId: String, runId: String): Boolean =
+            messageId == "assistant-$runId" ||
+                messageId.startsWith(assistantMessagePrefix(runId))
+    }
 }
 
 private const val MAX_TOOL_RESULT_PREVIEW_CHARS = 48

@@ -1818,6 +1818,12 @@ internal class AgentAppState(
                 }
             }
 
+            is AgentEvent.ModelRetryScheduled -> {
+                updateRunTrace(runId) { messages ->
+                    runMessageProjector.scheduleModelRetry(runId, event, messages)
+                }
+            }
+
             is AgentEvent.RunFailed -> {
                 updateRunTrace(runId) { messages ->
                     val finalizedThinking = runMessageProjector.finalizeThinking(runId, messages)
@@ -1944,12 +1950,10 @@ internal class AgentAppState(
         fallbackContent: String,
     ) {
         updateMessages(runId) { messages ->
-            val targetIndex = messages.indexOfLast { message ->
-                message is AgentMessageUi && message.id.startsWith(assistantMessagePrefix(runId))
-            }
+            val targetIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
             if (targetIndex < 0) {
                 messages + AgentMessageUi(
-                    id = assistantFallbackMessageId(runId),
+                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
                     content = fallbackContent,
                     isStreaming = false,
                     renderMarkdown = true,
@@ -1987,11 +1991,9 @@ internal class AgentAppState(
         detail: String? = null,
     ) {
         updateMessages(runId) { messages ->
-            val targetIndex = messages.indexOfLast { message ->
-                message is AgentMessageUi && message.id.startsWith(assistantMessagePrefix(runId))
-            }
+            val targetIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
             if (targetIndex < 0) {
-                messages + SystemNoticeMessageUi(assistantFallbackMessageId(runId), code, detail)
+                messages + SystemNoticeMessageUi(AgentRunMessageProjector.resultFallbackId(runId, messages), code, detail)
             } else {
                 messages.mapIndexed { index, message ->
                     if (index == targetIndex && message is AgentMessageUi) {
@@ -2125,6 +2127,7 @@ internal class AgentAppState(
                                 SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
                                 SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
                                 SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
+                                SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
                             },
                         )
                         is ThinkingMessageUi -> appContext.getString(R.string.conversation_preview_reasoning)

@@ -646,6 +646,11 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             is AgentEvent.AssistantBlockStart -> {
                 messages = runMessageProjector.startAssistantBlock(runId, event, messages)
             }
+            is AgentEvent.ModelRetryScheduled -> {
+                messages = runMessageProjector.scheduleModelRetry(runId, event, messages)
+                status = EtaVoiceStatus.Reasoning
+            }
+
 
             is AgentEvent.AssistantBlockDelta -> {
                 messages = when (event.kind) {
@@ -818,9 +823,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             !result.ok -> SystemNoticeCode.RuntimeFailed
             else -> null
         }
-        val lastAssistantIndex = messages.indexOfLast { message ->
-            message is AgentMessageUi && message.id.startsWith("assistant-$runId-")
-        }
+        val lastAssistantIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages)
         messages = if (lastAssistantIndex >= 0) {
             val targetRound = (messages[lastAssistantIndex] as AgentMessageUi).id
                 .assistantRound(runId)
@@ -855,14 +858,14 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         } else {
             if (notice == null) {
                 messages + AgentMessageUi(
-                    id = "assistant-$runId-1",
+                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
                     content = result.content,
                     isStreaming = false,
                     renderMarkdown = true,
                 )
             } else {
                 messages + SystemNoticeMessageUi(
-                    id = "assistant-$runId-1",
+                    id = AgentRunMessageProjector.resultFallbackId(runId, messages),
                     code = notice,
                     detail = result.error.takeIf { notice == SystemNoticeCode.RuntimeFailed },
                 )
