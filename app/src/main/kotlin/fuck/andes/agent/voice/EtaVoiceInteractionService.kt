@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.service.voice.VoiceInteractionService
 import android.service.voice.VoiceInteractionSession
+import java.util.UUID
 
 class EtaVoiceInteractionService : VoiceInteractionService() {
     override fun onReady() {
@@ -29,7 +30,21 @@ class EtaVoiceInteractionService : VoiceInteractionService() {
     }
 
     private fun showEtaSession() {
-        showSession(Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST)
+        val entryId = UUID.randomUUID().toString()
+        val flags = VoiceInteractionSession.SHOW_WITH_ASSIST or
+            VoiceInteractionSession.SHOW_WITH_SCREENSHOT or
+            if (Build.VERSION.SDK_INT >= 37) {
+                @Suppress("NewApi")
+                VoiceInteractionSession.SHOW_WITH_ASSIST_STRUCTURE_SCREEN_CONTENT
+            } else {
+                0
+            }
+        showSession(
+            Bundle().apply {
+                putString(EtaVoiceInteractionSession.EXTRA_ENTRY_ID, entryId)
+            },
+            flags,
+        )
     }
 
     companion object {

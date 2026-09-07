@@ -530,4 +530,42 @@ class AgentRuntimeWireTest {
 
         assertEquals(false, handoff.dismissEntrySurfaceOnForegroundOperation)
     }
+
+    @Test
+    fun screenContextTextRoundTripsWith8000CharBound() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-sc",
+            prompt = "分析",
+            config = AgentModelClient.ModelConfig(
+                baseUrl = "https://example.invalid/v1",
+                apiKey = "test-key",
+                model = "test-model",
+                systemPrompt = "",
+            ),
+            images = emptyList(),
+            screenContextText = "s".repeat(8_001),
+        )
+        val bundle = AgentRuntimeWire.toLegacyBundle(request)
+        assertEquals(8_000, bundle.getString("screen_context_text")?.length)
+        val roundTripped = AgentRuntimeWire.runRequestFromBundle(bundle)
+        assertEquals(8_000, roundTripped.screenContextText.length)
+    }
+
+    @Test
+    fun missingScreenContextKeyDefaultsToEmpty() {
+        val bundle = AgentRuntimeWire.toLegacyBundle(
+            AgentRuntimeWire.RunRequest(
+                runId = "run-sc2",
+                prompt = "分析",
+                config = AgentModelClient.ModelConfig(
+                    baseUrl = "https://example.invalid/v1",
+                    apiKey = "test-key",
+                    model = "test-model",
+                    systemPrompt = "",
+                ),
+                images = emptyList(),
+            )
+        ).apply { remove("screen_context_text") }
+        assertEquals("", AgentRuntimeWire.runRequestFromBundle(bundle).screenContextText)
+    }
 }

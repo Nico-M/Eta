@@ -587,9 +587,7 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         val userImagePreviews = if (
             handoff.source == AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE
         ) {
-            request.images
-                .asSequence()
-                .take(MAX_ARCHIVED_USER_IMAGE_PREVIEWS)
+            archivePreviewCandidates(request.images)
                 .mapNotNull { image ->
                     AgentImageCodec.previewFromReference(this, image)?.reference
                 }
@@ -1055,12 +1053,23 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
         )
     }
 
-    private companion object {
+    internal companion object {
         const val ACTION_KEEP_ALIVE = "fuck.andes.agent.runtime.KEEP_ALIVE"
         const val HIDE_DELAY_MS = 2_500L
         const val RESULT_REVIEW_DELAY_MS = 120_000L
         const val RESULT_CARD_HEIGHT_RATIO = 0.5f
         const val MAX_ARCHIVED_USER_IMAGE_PREVIEWS = 4
+        const val SYSTEM_ASSIST_IMAGE_SOURCE = "system_assist"
+
+        /** 精确过滤 `system_assist` 后最多取 4 张；fallback 的 `screen_context` 与用户图片不被过滤。 */
+        internal fun archivePreviewCandidates(
+            images: List<AgentModelClient.ModelImage>,
+        ): List<AgentModelClient.ModelImage> =
+            images
+                .asSequence()
+                .filterNot { image -> image.source == SYSTEM_ASSIST_IMAGE_SOURCE }
+                .take(MAX_ARCHIVED_USER_IMAGE_PREVIEWS)
+                .toList()
     }
 
     private data class CompletedRunContext(

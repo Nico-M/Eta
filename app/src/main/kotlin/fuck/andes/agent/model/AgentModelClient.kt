@@ -90,6 +90,7 @@ internal object AgentModelClient {
         runController: AgentRunController = AgentRunController(),
         skillContext: SkillContext = SkillContext.EMPTY,
         memoryContext: AgentMemoryContext = AgentMemoryContext.DISABLED,
+        screenContextText: String = "",
         additionalTools: JSONArray = JSONArray(),
         onEvent: (AgentEvent) -> Unit = {}
     ): ModelResponse.Text {
@@ -101,6 +102,7 @@ internal object AgentModelClient {
             history,
             skillContext,
             memoryContext,
+            screenContextText,
         )
         val transcriptStartIndex = messages.length()
         val tools = AgentToolCatalog.build(

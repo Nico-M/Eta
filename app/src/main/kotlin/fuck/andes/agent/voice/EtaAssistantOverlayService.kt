@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
@@ -34,7 +35,6 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
-import fuck.andes.agent.accessibility.AgentAccessibilityService
 import fuck.andes.agent.media.AgentImageCodec
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.overlay.AgentOverlayVisibilityPolicy
@@ -71,6 +71,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 
 /**
@@ -99,11 +102,17 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     private var backInvokedDispatcher: OnBackInvokedDispatcher? = null
     private var backInvokedCallback: OnBackInvokedCallback? = null
     private var runJob: Job? = null
-    private var entryCaptureJob: Job? = null
+    private var assistJob: Job? = null
+    private var fallbackJob: Job? = null
     private var activeRunId: String? = null
     private var entryGeneration = 0L
     private var presentedEntryGeneration = -1L
     private var screenContextAttachment: EtaScreenContextAttachment? = null
+    private var activeAssistEntryId: String? = null
+    private var assistReadySignal: CompletableDeferred<Unit>? = null
+    private var entryState: EtaAssistEntryReducer.State =
+        EtaAssistEntryReducer.waiting(entryId = "", generation = 0L, deadlineElapsed = 0L)
+    private var screenContextText = ""
     private var hiddenForForegroundOperation = false
     private var handoffInProgress = false
     private var handoffExitRequested by mutableStateOf(false)
@@ -126,9 +135,10 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_SHOW -> showEntry()
+            ACTION_SHOW -> showEntry(intent.getStringExtra(EXTRA_ENTRY_ID))
+            ACTION_ASSIST_CONTEXT_READY -> assistContextReady(intent.getStringExtra(EXTRA_ENTRY_ID).orEmpty())
             ACTION_HANDOFF_READY -> finishHandoff()
-            else -> showEntry()
+            else -> showEntry(null)
         }
         return START_NOT_STICKY
     }
@@ -137,8 +147,8 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
 
     override fun onDestroy() {
         entryGeneration++
-        entryCaptureJob?.cancel()
-        entryCaptureJob = null
+        cancelAssistAndFallback()
+        dispatchDismiss()
         screenContextAttachment = null
         cancelCurrentRun()
         removeWindow()
@@ -149,7 +159,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         super.onDestroy()
     }
 
-    private fun showEntry() {
+    private fun showEntry(assistEntryId: String? = null) {
         if (!Settings.canDrawOverlays(this)) {
             AndroidAgentLogger.warnThrottled("eta_assistant_overlay_permission_missing") {
                 "Eta assistant overlay permission is missing"
@@ -158,11 +168,18 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             return
         }
         cancelCurrentRun()
-        entryCaptureJob?.cancel()
+        cancelAssistAndFallback()
         removeWindow()
         val generation = ++entryGeneration
+        activeAssistEntryId = assistEntryId
+        entryState = EtaAssistEntryReducer.waiting(
+            entryId = assistEntryId.orEmpty(),
+            generation = generation,
+            deadlineElapsed = SystemClock.elapsedRealtime() + ASSIST_CONTEXT_TIMEOUT_MS,
+        )
         presentedEntryGeneration = -1L
         screenContextAttachment = null
+        screenContextText = ""
         inputText = ""
         uiState = EtaVoiceUiState(
             screenContext = EtaScreenContextUiState(
@@ -172,106 +189,212 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
         hiddenForForegroundOperation = false
         handoffInProgress = false
         handoffExitRequested = false
-        val accessibility = AgentAccessibilityService.current()
-        if (accessibility == null) {
-            uiState = uiState.copy(
-                screenContext = EtaScreenContextUiState(
-                    phase = EtaScreenContextPhase.UNAVAILABLE,
-                ),
-            )
-            presentEntry(generation)
+        if (assistEntryId == null) {
+            startFallback(generation)
             return
         }
-        entryCaptureJob = scope.launch {
-            if (Build.VERSION.SDK_INT >= 34) {
-                val result = accessibility.captureScreenshotExcludingOverlays(
-                    onWindowsSubmitted = {
-                        scope.launch(Dispatchers.Main.immediate) {
-                            presentEntry(generation)
-                        }
-                    },
-                )
-                val bitmap = result.bitmap
-                val attachment = if (bitmap == null || result.criticalWindowMissing) {
-                    null
-                } else {
-                    try {
-                        runCatching {
-                            val image = AgentImageCodec.fromScreenContextBitmap(
-                                bitmap,
-                                source = "screen_context",
-                            )
-                            val preview = AgentImageCodec.previewFromReference(
-                                this@EtaAssistantOverlayService,
-                                image,
-                            ) ?: return@runCatching null
-                            EtaScreenContextAttachment(
-                                image = image,
-                                previewDataUrl = preview.reference,
-                            )
-                        }.onFailure { throwable ->
-                            AndroidAgentLogger.warn(
-                                "Eta assistant entry screenshot encode failed: " +
-                                    "type=${throwable.javaClass.simpleName}"
-                            )
-                        }.getOrNull()
-                    } finally {
-                        if (!bitmap.isRecycled) bitmap.recycle()
-                    }
+        // Assist-first：立即显示 CAPTURING UI 并尝试 consume；1,000 ms 单调 deadline 内
+        // 没有 ready action 就进入统一截图入口的 fallback。
+        presentEntry(generation)
+        val readySignal = CompletableDeferred<Unit>()
+        assistReadySignal = readySignal
+        assistJob = scope.launch {
+            runAssistFlow(generation, assistEntryId, readySignal)
+        }
+    }
+
+    private suspend fun runAssistFlow(
+        generation: Long,
+        assistEntryId: String,
+        readySignal: CompletableDeferred<Unit>,
+    ) {
+        val store = EtaAssistContextStore(this@EtaAssistantOverlayService)
+        val first = withContext(Dispatchers.IO) { store.consume(assistEntryId) }
+        if (first != null) {
+            withContext(Dispatchers.Main.immediate) { onConsumed(generation, assistEntryId, first) }
+            return
+        }
+        val waiting = entryState as? EtaAssistEntryReducer.State.Waiting
+        val waitMs = waiting?.deadlineElapsed
+            ?.let { deadline -> deadline - SystemClock.elapsedRealtime() }
+            ?.coerceAtLeast(0L) ?: 0L
+        val firedByReady = try {
+            withTimeout(waitMs) { readySignal.await() }
+            true
+        } catch (_: TimeoutCancellationException) {
+            false
+        }
+        if (firedByReady) {
+            val second = withContext(Dispatchers.IO) { store.consume(assistEntryId) }
+            if (second != null) {
+                withContext(Dispatchers.Main.immediate) { onConsumed(generation, assistEntryId, second) }
+                return
+            }
+            withContext(Dispatchers.Main.immediate) {
+                if (
+                    dispatchEvent(EtaAssistEntryReducer.Event.ReadyMissingOrInvalid) ==
+                    EtaAssistEntryReducer.Action.StartFallback
+                ) {
+                    startFallback(generation)
                 }
-                withContext(Dispatchers.Main.immediate) {
-                    if (generation != entryGeneration) return@withContext
-                    entryCaptureJob = null
-                    screenContextAttachment = attachment
-                    uiState = uiState.copy(
-                        screenContext = if (attachment == null) {
-                            EtaScreenContextUiState(phase = EtaScreenContextPhase.UNAVAILABLE)
-                        } else {
-                            EtaScreenContextUiState(
-                                phase = EtaScreenContextPhase.AVAILABLE,
-                                previewDataUrl = attachment.previewDataUrl,
-                            )
-                        },
-                    )
-                    presentEntry(generation)
-                }
-            } else {
-                val controller = RootShellDeviceController(AndroidAgentLogger)
-                val capture = controller.captureScreenshot(ScreenCaptureEncoding.SCREEN_CONTEXT)
-                val image = capture.image
-                val attachment = if (image == null) {
-                    null
-                } else {
-                    val preview = runCatching {
-                        AgentImageCodec.previewFromReference(
-                            this@EtaAssistantOverlayService,
-                            image,
-                        )
-                    }.getOrNull()
-                    if (preview == null) null else
-                        EtaScreenContextAttachment(
-                            image = image,
-                            previewDataUrl = preview.reference,
-                        )
-                }
-                withContext(Dispatchers.Main.immediate) {
-                    if (generation != entryGeneration) return@withContext
-                    entryCaptureJob = null
-                    screenContextAttachment = attachment
-                    uiState = uiState.copy(
-                        screenContext = if (attachment == null) {
-                            EtaScreenContextUiState(phase = EtaScreenContextPhase.UNAVAILABLE)
-                        } else {
-                            EtaScreenContextUiState(
-                                phase = EtaScreenContextPhase.AVAILABLE,
-                                previewDataUrl = attachment.previewDataUrl,
-                            )
-                        },
-                    )
-                    presentEntry(generation)
+            }
+        } else {
+            withContext(Dispatchers.IO) { store.discard(assistEntryId) }
+            withContext(Dispatchers.Main.immediate) {
+                if (
+                    dispatchEvent(EtaAssistEntryReducer.Event.Deadline) ==
+                    EtaAssistEntryReducer.Action.StartFallback
+                ) {
+                    startFallback(generation)
                 }
             }
         }
+    }
+
+    private fun onConsumed(
+        generation: Long,
+        assistEntryId: String,
+        consumed: EtaAssistContextStore.Consumed,
+    ) {
+        if (generation != entryGeneration) return
+        val structureText = consumed.screenContextText
+        val hasStructure = structureText.isNotBlank()
+        val attachment = consumed.imageBytes?.let { bytes ->
+            val image = AgentImageCodec.fromEncodedBytes(
+                bytes = bytes,
+                mimeType = consumed.imageMimeType,
+                width = consumed.imageWidth,
+                height = consumed.imageHeight,
+                source = "system_assist",
+            ) ?: return@let null
+            val preview = runCatching {
+                AgentImageCodec.previewFromReference(this@EtaAssistantOverlayService, image)
+            }.getOrNull() ?: return@let null
+            EtaScreenContextAttachment(image, preview.reference)
+        }
+        val hasImage = attachment != null
+        if (!hasImage && !hasStructure) {
+            // 两种内容都无效：discard 并 fallback，不记录 assist/partial 终态。
+            EtaAssistContextStore(this).discard(assistEntryId)
+            startFallback(generation)
+            return
+        }
+        if (
+            dispatchEvent(EtaAssistEntryReducer.Event.ConsumeSucceeded) !=
+            EtaAssistEntryReducer.Action.PresentAssist
+        ) {
+            return
+        }
+        assistJob = null
+        assistReadySignal = null
+        screenContextText = structureText
+        screenContextAttachment = attachment
+        EtaAssistContextHealthStore.write(
+            this,
+            if (hasImage && hasStructure) {
+                EtaAssistContextHealthStore.OUTCOME_ASSIST_CONSUMED
+            } else {
+                EtaAssistContextHealthStore.OUTCOME_PARTIAL
+            },
+            hasImage = hasImage,
+            hasStructure = hasStructure,
+        )
+        uiState = uiState.copy(
+            screenContext = EtaScreenContextUiState(
+                phase = EtaScreenContextPhase.AVAILABLE,
+                previewDataUrl = attachment?.previewDataUrl,
+            ),
+        )
+        presentEntry(generation)
+    }
+
+    private fun startFallback(generation: Long) {
+        if (generation != entryGeneration) return
+        entryState = EtaAssistEntryReducer.State.FallbackStarted
+        EtaAssistContextHealthStore.write(
+            this,
+            EtaAssistContextHealthStore.OUTCOME_FALLBACK_STARTED,
+            hasImage = false,
+            hasStructure = false,
+        )
+        val controller = RootShellDeviceController(AndroidAgentLogger)
+        fallbackJob = scope.launch {
+            val result = controller.captureScreenshot(
+                encoding = ScreenCaptureEncoding.SCREEN_CONTEXT,
+            )
+            val attachment = result.image?.let { image ->
+                runCatching {
+                    val preview = AgentImageCodec.previewFromReference(
+                        this@EtaAssistantOverlayService,
+                        image,
+                    ) ?: return@runCatching null
+                    EtaScreenContextAttachment(image, preview.reference)
+                }.getOrNull()
+            }
+            withContext(Dispatchers.Main.immediate) {
+                if (generation != entryGeneration) return@withContext
+                fallbackJob = null
+                screenContextAttachment = attachment
+                uiState = uiState.copy(
+                    screenContext = attachment?.let {
+                        EtaScreenContextUiState(
+                            phase = EtaScreenContextPhase.AVAILABLE,
+                            previewDataUrl = it.previewDataUrl,
+                        )
+                    } ?: EtaScreenContextUiState(phase = EtaScreenContextPhase.UNAVAILABLE),
+                )
+                presentEntry(generation)
+            }
+        }
+    }
+
+    private fun assistContextReady(assistEntryId: String) {
+        if (assistEntryId.isBlank()) return
+        val state = entryState
+        if (
+            state is EtaAssistEntryReducer.State.Waiting &&
+            state.entryId == assistEntryId &&
+            state.generation == entryGeneration
+        ) {
+            assistReadySignal?.complete(Unit)
+            return
+        }
+        if (
+            dispatchEvent(EtaAssistEntryReducer.Event.LateReady) ==
+            EtaAssistEntryReducer.Action.Discard
+        ) {
+            val store = EtaAssistContextStore(this)
+            scope.launch(Dispatchers.IO) { store.discard(assistEntryId) }
+        }
+    }
+
+    private fun dispatchEvent(event: EtaAssistEntryReducer.Event): EtaAssistEntryReducer.Action {
+        val (next, action) = EtaAssistEntryReducer.reduce(entryState, event)
+        entryState = next
+        return action
+    }
+
+    private fun dispatchDismiss() {
+        if (
+            dispatchEvent(EtaAssistEntryReducer.Event.Dismiss) ==
+            EtaAssistEntryReducer.Action.Discard
+        ) {
+            EtaAssistContextHealthStore.write(
+                this,
+                EtaAssistContextHealthStore.OUTCOME_CANCELLED,
+                hasImage = false,
+                hasStructure = false,
+            )
+            activeAssistEntryId?.let { entryId -> EtaAssistContextStore(this).discard(entryId) }
+        }
+    }
+
+    private fun cancelAssistAndFallback() {
+        assistJob?.cancel()
+        assistJob = null
+        fallbackJob?.cancel()
+        fallbackJob = null
+        assistReadySignal = null
     }
 
     private fun presentEntry(generation: Long) {
@@ -410,10 +533,15 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     private fun submitPrompt(prompt: String) {
         val normalized = prompt.trim()
         if (normalized.isBlank() || activeRunId != null) return
-        val attachment = screenContextAttachment.takeIf { uiState.screenContext.selected }
-        val runImages = attachment?.let { listOf(it.image) }.orEmpty()
-        val previewImages = attachment?.let { listOf(it.previewDataUrl) }.orEmpty()
+        // 在把 UI 状态改成 CONSUMED 前一次性捕获 selection snapshot；
+        // 禁止在 coroutine 中重新读取已经重置的 uiState/screenContext 字段。
+        val includeScreenContext = uiState.screenContext.selected
+        val selectedAttachment = screenContextAttachment.takeIf { includeScreenContext }
+        val runImages = selectedAttachment?.let { listOf(it.image) }.orEmpty()
+        val previewImages = selectedAttachment?.let { listOf(it.previewDataUrl) }.orEmpty()
+        val snapshotScreenContextText = if (includeScreenContext) screenContextText else ""
         screenContextAttachment = null
+        screenContextText = ""
         inputText = ""
         activeRunId = UUID.randomUUID().toString()
         val runId = activeRunId ?: return
@@ -442,6 +570,7 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
                     config = config,
                     images = runImages,
                     history = conversationHistory,
+                    screenContextText = snapshotScreenContextText,
                     handoff = AgentRuntimeWire.EntryHandoff(
                         id = "$conversationKey:$runId",
                         source = AgentRuntimeWire.ETA_VOICE_HANDOFF_SOURCE,
@@ -805,11 +934,12 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     }
 
     private fun selectScreenContext() {
+        val hasContext = screenContextAttachment != null || screenContextText.isNotBlank()
         uiState = uiState.copy(
             screenContext = EtaScreenContextStateReducer.select(
                 state = uiState.screenContext,
                 enabled = activeRunId == null,
-                hasAttachment = screenContextAttachment != null,
+                hasContext = hasContext,
             ),
         )
     }
@@ -896,8 +1026,8 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
 
     private fun dismissAndStop() {
         entryGeneration++
-        entryCaptureJob?.cancel()
-        entryCaptureJob = null
+        cancelAssistAndFallback()
+        dispatchDismiss()
         screenContextAttachment = null
         cancelCurrentRun()
         removeWindow()
@@ -962,15 +1092,18 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
     internal companion object {
         const val ACTION_SHOW = "fuck.andes.agent.voice.SHOW"
         const val ACTION_OPEN_CONVERSATION = "fuck.andes.agent.voice.OPEN_CONVERSATION"
+        const val ACTION_ASSIST_CONTEXT_READY = "fuck.andes.agent.voice.ASSIST_CONTEXT_READY"
         const val EXTRA_CONVERSATION_KEY = "fuck.andes.agent.voice.extra.CONVERSATION_KEY"
+        const val EXTRA_ENTRY_ID = "fuck.andes.agent.voice.extra.ENTRY_ID"
         private const val ACTION_HANDOFF_READY = "fuck.andes.agent.voice.HANDOFF_READY"
         private const val HANDOFF_TIMEOUT_MS = 5_000L
         private const val HANDOFF_EXIT_DURATION_MS = 220L
         private const val HANDOFF_REQUEST_CODE = 0x455441
+        private const val FOREGROUND_DISMISS_TIMEOUT_MS = 2_000L
         private const val LEGACY_STOPPED_ERROR = "已停止"
         private const val SYNTHETIC_STOPPED = "eta_status:stopped"
         private const val SYNTHETIC_RUNTIME_FAILED = "eta_status:runtime_failed"
-        private const val FOREGROUND_DISMISS_TIMEOUT_MS = 2_000L
+        private const val ASSIST_CONTEXT_TIMEOUT_MS = 1_000L
         private val mainHandler = Handler(Looper.getMainLooper())
 
         @Volatile
@@ -1021,6 +1154,22 @@ internal class EtaAssistantOverlayService : Service(), LifecycleOwner, SavedStat
             context.applicationContext.startService(
                 Intent(context.applicationContext, EtaAssistantOverlayService::class.java)
                     .setAction(ACTION_SHOW),
+            )
+        }
+
+        fun show(context: Context, entryId: String) {
+            context.applicationContext.startService(
+                Intent(context.applicationContext, EtaAssistantOverlayService::class.java)
+                    .setAction(ACTION_SHOW)
+                    .putExtra(EXTRA_ENTRY_ID, entryId),
+            )
+        }
+
+        fun assistContextReady(context: Context, entryId: String) {
+            context.applicationContext.startService(
+                Intent(context.applicationContext, EtaAssistantOverlayService::class.java)
+                    .setAction(ACTION_ASSIST_CONTEXT_READY)
+                    .putExtra(EXTRA_ENTRY_ID, entryId),
             )
         }
 

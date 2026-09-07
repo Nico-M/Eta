@@ -62,6 +62,37 @@ internal object AgentImageCodec {
         source: String,
     ): AgentModelClient.ModelImage = AgentModelImageEncoder.screenContext(bitmap, source)
 
+    /**
+     * System Assist 落盘的编码字节直出还原：校验 JPEG magic、字节数与正尺寸，
+     * 并用 `inJustDecodeBounds` 只读 bounds，要求实际 mime/width/height 与 metadata
+     * 精确一致后直接 base64，不做完整 decode/transcode。校验失败返回 null。
+     */
+    fun fromEncodedBytes(
+        bytes: ByteArray,
+        mimeType: String,
+        width: Int,
+        height: Int,
+        source: String,
+    ): AgentModelClient.ModelImage? = runCatching {
+        require(bytes.isNotEmpty() && bytes.size <= MAX_AGENT_IMAGE_BYTES) { "图片数据过大" }
+        require(bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) { "非 JPEG 内容" }
+        require(mimeType == "image/jpeg") { "mime 不匹配" }
+        require(width > 0 && height > 0) { "尺寸非正" }
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        require(options.outWidth == width && options.outHeight == height) { "实际尺寸与 metadata 不一致" }
+        // JPEG magic 已确认编码；Robolectric 的 outMimeType 可能为 null，只在非空时强校验。
+        options.outMimeType?.let { require(it == "image/jpeg") { "实际 mime 非 JPEG" } }
+        AgentModelClient.ModelImage(
+            reference = "data:$mimeType;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}",
+            mimeType = mimeType,
+            bytes = bytes.size,
+            width = width,
+            height = height,
+            source = source,
+        )
+    }.getOrNull()
+
     /** Root 整屏截图的字节解码为屏幕上下文编码，不改变助理入口的有界视觉合同。 */
     fun fromScreenContextBytes(
         bytes: ByteArray,

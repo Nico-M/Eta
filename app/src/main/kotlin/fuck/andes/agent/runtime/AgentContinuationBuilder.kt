@@ -39,6 +39,7 @@ internal object AgentContinuationBuilder {
             images = emptyList(),
             history = baseHistory,
             handoff = handoff,
+            screenContextText = "",
         )
     }
 

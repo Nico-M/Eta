@@ -4,6 +4,7 @@ import fuck.andes.data.db.FuckAndesDatabase
 import android.content.Context
 import fuck.andes.agent.model.AgentModelClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -139,5 +140,30 @@ class AgentRunArchiveStoreTest {
         AgentRunArchiveStore.remove(context, "run-1")
 
         assertEquals(emptyList<AgentRunArchiveStore.ArchivedRun>(), AgentRunArchiveStore.list(context))
+    }
+
+    @Test
+    fun archivePreviewCandidatesFiltersSystemAssistAndCapsAtFour() {
+        fun image(source: String, index: Int) = AgentModelClient.ModelImage(
+            reference = "data:image/jpeg;base64,AA==",
+            mimeType = "image/jpeg",
+            bytes = 1,
+            source = source,
+        )
+        val images = listOf(
+            image("system_assist", 0),
+            image("screen_context", 1),
+            image("user_attach", 2),
+            image("user_attach", 3),
+            image("user_attach", 4),
+            image("user_attach", 5),
+            image("user_attach", 6),
+            image("system_assist", 7),
+        )
+        val candidates = AgentRuntimeService.archivePreviewCandidates(images)
+        assertEquals(4, candidates.size)
+        assertTrue(candidates.none { it.source == "system_assist" })
+        assertTrue(candidates.any { it.source == "screen_context" })
+        assertTrue(candidates.all { it.source == "user_attach" || it.source == "screen_context" })
     }
 }

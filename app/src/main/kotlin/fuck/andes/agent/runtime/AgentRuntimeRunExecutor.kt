@@ -193,6 +193,7 @@ internal class AgentRuntimeRunExecutor(
                 runController = runController,
                 skillContext = skillContext,
                 memoryContext = memoryContext,
+                screenContextText = request.screenContextText,
                 additionalTools = mcpTools,
             ) { event ->
                 timing.accept(event)

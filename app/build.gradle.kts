@@ -93,6 +93,15 @@ android {
 
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        unitTests.all { testTask ->
+            // Robolectric native runtime (Room SQLite, Typeface) is not fork-safe:
+            // serialize test JVMs and allow JNI access for the native-access JVM flag.
+            // 每个测试类独立 JVM：Robolectric 的 ZipFS provider 是进程级单例，
+            // 复用一个 worker 会触发 FileSystemAlreadyExistsException。
+            testTask.maxParallelForks = 1
+            testTask.jvmArgs("--enable-native-access=ALL-UNNAMED")
+            testTask.forkEvery = 1
+        }
     }
 }
 

@@ -139,9 +139,9 @@ internal object EtaScreenContextStateReducer {
     fun select(
         state: EtaScreenContextUiState,
         enabled: Boolean,
-        hasAttachment: Boolean,
+        hasContext: Boolean,
     ): EtaScreenContextUiState =
-        if (enabled && hasAttachment && state.phase == EtaScreenContextPhase.AVAILABLE) {
+        if (enabled && hasContext && state.phase == EtaScreenContextPhase.AVAILABLE) {
             state.copy(selected = true)
         } else {
             state

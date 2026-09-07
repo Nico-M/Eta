@@ -78,6 +78,7 @@ internal object AgentRuntimeWire {
     private const val KEY_TYPE = "type"
     private const val KEY_RUN_ID = "run_id"
     private const val KEY_PROMPT = "prompt"
+    private const val KEY_SCREEN_CONTEXT_TEXT = "screen_context_text"
     private const val KEY_PROVIDER_ID = "provider_id"
     private const val KEY_PROVIDER_NAME = "provider_name"
     private const val KEY_PROVIDER_TYPE = "provider_type"
@@ -135,6 +136,7 @@ internal object AgentRuntimeWire {
     private const val MAX_RESULT_REASONING_CHARS = 32_000
     private const val MAX_DRAIN_CONTENT_CHARS = 16_000
     private const val MAX_DRAIN_REASONING_CHARS = 4_000
+    private const val MAX_SCREEN_CONTEXT_CHARS = 8_000
     private const val TRUNCATED_SUFFIX = "\n\n[跨进程结果过长，已截断]"
     private const val MAX_START_REQUEST_PARCEL_BYTES = 768 * 1024
 
@@ -144,7 +146,8 @@ internal object AgentRuntimeWire {
         val config: AgentModelClient.ModelConfig,
         val images: List<AgentModelClient.ModelImage>,
         val history: List<AgentModelClient.ConversationMessage> = emptyList(),
-        val handoff: EntryHandoff? = null
+        val handoff: EntryHandoff? = null,
+        val screenContextText: String = "",
     )
 
     /**
@@ -240,6 +243,7 @@ internal object AgentRuntimeWire {
     private fun requestBundle(request: RunRequest, imageBundles: List<Bundle>): Bundle = Bundle().apply {
         putString(KEY_RUN_ID, request.runId)
         putString(KEY_PROMPT, request.prompt)
+        putString(KEY_SCREEN_CONTEXT_TEXT, request.screenContextText.boundedText(MAX_SCREEN_CONTEXT_CHARS))
         putString(KEY_PROVIDER_ID, request.config.providerId)
         putString(KEY_PROVIDER_NAME, request.config.providerName)
         putString(KEY_PROVIDER_TYPE, request.config.providerType)
@@ -351,6 +355,8 @@ internal object AgentRuntimeWire {
     ): RunRequest = RunRequest(
             runId = bundle.getString(KEY_RUN_ID).orEmpty(),
             prompt = bundle.getString(KEY_PROMPT).orEmpty(),
+            screenContextText = bundle.getString(KEY_SCREEN_CONTEXT_TEXT).orEmpty()
+                .take(MAX_SCREEN_CONTEXT_CHARS),
             config = AgentModelClient.ModelConfig(
                 providerId = bundle.getString(KEY_PROVIDER_ID).orEmpty(),
                 providerName = bundle.getString(KEY_PROVIDER_NAME).orEmpty(),

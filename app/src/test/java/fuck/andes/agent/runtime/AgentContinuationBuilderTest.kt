@@ -73,6 +73,27 @@ class AgentContinuationBuilderTest {
         assertTrue(payload.supplements.isEmpty())
     }
 
+    @Test
+    fun continuationClearsScreenContextText() {
+        val request = AgentRuntimeWire.RunRequest(
+            runId = "run-old",
+            prompt = "观察屏幕",
+            config = modelConfig(),
+            images = emptyList(),
+            screenContextText = "node 1 text=secret",
+        )
+        val response = AgentModelClient.ModelResponse.Text(content = "完成")
+        val continuation = AgentContinuationBuilder.build(
+            request = request,
+            response = response,
+            supplement = "继续",
+            newRunId = "run-next",
+        )
+        assertEquals("", continuation.screenContextText)
+        assertEquals("run-next", continuation.runId)
+        assertTrue(continuation.images.isEmpty())
+    }
+
     private fun modelConfig(): AgentModelClient.ModelConfig =
         AgentModelClient.ModelConfig(
             baseUrl = "https://example.invalid/v1",

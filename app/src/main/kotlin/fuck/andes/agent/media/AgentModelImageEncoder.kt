@@ -41,6 +41,15 @@ internal object AgentModelImageEncoder {
 
     private data class TargetSize(val width: Int, val height: Int)
 
+    /** 编码后字节直出；System Assist store 直接落盘这些 bytes。 */
+    data class EncodedImage(
+        val bytes: ByteArray,
+        val mimeType: String,
+        val width: Int,
+        val height: Int,
+        val source: String,
+    )
+
     private val screenProfile = EncodingProfile(
         format = Bitmap.CompressFormat.WEBP_LOSSLESS,
         mimeType = "image/webp",
@@ -87,8 +96,55 @@ internal object AgentModelImageEncoder {
     fun screenContext(
         bitmap: Bitmap,
         source: String,
-    ): AgentModelClient.ModelImage =
-        encodeBitmap(bitmap, source, toolVisionProfile, flattenAlpha = true)
+    ): AgentModelClient.ModelImage {
+        val encoded = screenContextEncoded(bitmap, source)
+        return AgentModelClient.ModelImage(
+            reference = "data:${encoded.mimeType};base64,${Base64.encodeToString(encoded.bytes, Base64.NO_WRAP)}",
+            mimeType = encoded.mimeType,
+            bytes = encoded.bytes.size,
+            width = encoded.width,
+            height = encoded.height,
+            source = encoded.source,
+        )
+    }
+
+    /** 编码后字节直出路径，避免 JPEG→base64→decode 双重分配；用于 System Assist 落盘。 */
+    fun screenContextEncoded(
+        bitmap: Bitmap,
+        source: String,
+    ): EncodedImage {
+        require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) { "图片位图不可用" }
+        val encodedBitmap = renderBitmap(
+            bitmap = bitmap,
+            target = targetSize(bitmap.width, bitmap.height, toolVisionProfile),
+            flattenAlpha = true,
+        )
+        try {
+            val initialCapacity = minOf(
+                encodedBitmap.width * encodedBitmap.height / 4,
+                2 * 1024 * 1024,
+            ).coerceAtLeast(32 * 1024)
+            val output = ByteArrayOutputStream(initialCapacity)
+            check(encodedBitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)) {
+                "图片编码失败"
+            }
+            val encoded = output.toByteArray()
+            require(encoded.isNotEmpty() && encoded.size <= MAX_AGENT_IMAGE_BYTES) {
+                "图片数据过大：${encoded.size}"
+            }
+            return EncodedImage(
+                bytes = encoded,
+                mimeType = "image/jpeg",
+                width = encodedBitmap.width,
+                height = encodedBitmap.height,
+                source = source,
+            )
+        } finally {
+            if (encodedBitmap !== bitmap && !encodedBitmap.isRecycled) {
+                encodedBitmap.recycle()
+            }
+        }
+    }
 
     /** 文件工具图片仅在发送模型前缩放压缩，保持多图请求的体积可控。 */
     fun toolVision(

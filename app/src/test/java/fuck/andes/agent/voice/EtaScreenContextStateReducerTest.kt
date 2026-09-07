@@ -16,7 +16,7 @@ class EtaScreenContextStateReducerTest {
         val selected = EtaScreenContextStateReducer.select(
             state = available,
             enabled = true,
-            hasAttachment = true,
+            hasContext = true,
         )
         assertTrue(selected.selected)
         assertEquals(available.previewDataUrl, selected.previewDataUrl)
@@ -27,19 +27,19 @@ class EtaScreenContextStateReducerTest {
     }
 
     @Test
-    fun `busy unavailable or missing attachment cannot be selected`() {
+    fun `busy unavailable or missing context cannot be selected`() {
         assertEquals(
             available,
-            EtaScreenContextStateReducer.select(available, enabled = false, hasAttachment = true),
+            EtaScreenContextStateReducer.select(available, enabled = false, hasContext = true),
         )
         assertEquals(
             available,
-            EtaScreenContextStateReducer.select(available, enabled = true, hasAttachment = false),
+            EtaScreenContextStateReducer.select(available, enabled = true, hasContext = false),
         )
         val capturing = EtaScreenContextUiState(phase = EtaScreenContextPhase.CAPTURING)
         assertEquals(
             capturing,
-            EtaScreenContextStateReducer.select(capturing, enabled = true, hasAttachment = true),
+            EtaScreenContextStateReducer.select(capturing, enabled = true, hasContext = true),
         )
     }
 

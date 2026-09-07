@@ -20,6 +20,8 @@ import java.io.FileNotFoundException
 import java.io.FileOutputStream
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -267,6 +269,56 @@ class AgentImageCodecTest {
         assertTrue(maxOf(width, height) <= 1_600)
         assertTrue(width.toLong() * height <= 1_500_000L)
         assertTrue(image.bytes < 1_000_000)
+    }
+
+    @Test
+    fun fromEncodedBytesValidatesJpegMagicAndDimensions() {
+        val bitmap = patternedBitmap(width = 900, height = 1_800)
+        val jpeg = ByteArrayOutputStream().use { output ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+            output.toByteArray()
+        }
+        bitmap.recycle()
+
+        val image = AgentImageCodec.fromEncodedBytes(
+            bytes = jpeg,
+            mimeType = "image/jpeg",
+            width = 900,
+            height = 1_800,
+            source = "system_assist",
+        ) ?: error("合法 JPEG 应还原")
+        assertEquals("image/jpeg", image.mimeType)
+        assertEquals(900, image.width)
+        assertEquals(1_800, image.height)
+        assertTrue(image.reference.startsWith("data:image/jpeg;base64,"))
+        assertArrayEquals(jpeg, image.reference.decodeDataUrl())
+
+        // 错误 mime / 尺寸 / magic 均返回 null
+        assertNull(AgentImageCodec.fromEncodedBytes(jpeg, "image/png", 900, 1_800, "system_assist"))
+        assertNull(AgentImageCodec.fromEncodedBytes(jpeg, "image/jpeg", 1, 1, "system_assist"))
+        val corrupted = jpeg.copyOf()
+        corrupted[0] = 0x00
+        corrupted[1] = 0x00
+        assertNull(AgentImageCodec.fromEncodedBytes(corrupted, "image/jpeg", 900, 1_800, "system_assist"))
+    }
+
+    @Test
+    fun screenContextEncodedAndBitmapProduceIdenticalJpeg() {
+        val bitmap = patternedBitmap(width = 1_440, height = 3_200)
+        try {
+            val encoded = AgentModelImageEncoder.screenContextEncoded(bitmap, source = "system_assist")
+            val image = AgentImageCodec.fromScreenContextBitmap(bitmap, source = "system_assist")
+            assertArrayEquals(encoded.bytes, image.reference.decodeDataUrl())
+            assertEquals(encoded.mimeType, image.mimeType)
+            assertEquals(encoded.width, image.width)
+            assertEquals(encoded.height, image.height)
+            assertTrue(maxOf(encoded.width, encoded.height) <= 1_600)
+            assertTrue(encoded.width.toLong() * encoded.height <= 1_500_000L)
+            // framework bitmap 调用后未被 recycle
+            assertFalse(bitmap.isRecycled)
+        } finally {
+            bitmap.recycle()
+        }
     }
 
     private fun patternedBitmap(width: Int, height: Int): Bitmap =
