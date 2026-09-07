@@ -522,7 +522,7 @@ fun AgentAppRoot(
             }
             entry<AppRoute.ModelProviderNew>(swipeDismiss = swipeDismiss) { route ->
                 ModelProviderDetailScreen(
-                    newType = route.type,
+                    newType = route.providerType,
                     onBack = ::popRoute
                 )
             }

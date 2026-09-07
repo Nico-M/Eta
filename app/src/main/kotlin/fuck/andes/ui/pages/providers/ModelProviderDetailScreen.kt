@@ -25,6 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.mapSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -79,7 +81,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
-private data class ProviderConfigDraft(
+internal data class ProviderConfigDraft(
     val name: String,
     val baseUrl: String,
     val apiKey: String,
@@ -107,6 +109,34 @@ private data class ProviderConfigDraft(
         )
     }
 }
+internal val ProviderConfigDraftSaver = mapSaver(
+    save = { draft ->
+        mapOf(
+            "name" to draft.name,
+            "baseUrl" to draft.baseUrl,
+            "apiKey" to draft.apiKey,
+            "systemPrompt" to draft.systemPrompt,
+            "isEnabled" to draft.isEnabled,
+            "endpointMode" to draft.endpointMode,
+            "hostedWebSearchEnabled" to draft.hostedWebSearchEnabled,
+            "anthropicVersion" to draft.anthropicVersion,
+        )
+    },
+    restore = { saved ->
+        ProviderConfigDraft(
+            name = saved["name"] as? String ?: "",
+            baseUrl = saved["baseUrl"] as? String ?: "",
+            apiKey = saved["apiKey"] as? String ?: "",
+            systemPrompt = saved["systemPrompt"] as? String ?: "",
+            isEnabled = saved["isEnabled"] as? Boolean ?: true,
+            endpointMode = saved["endpointMode"] as? String ?: "",
+            hostedWebSearchEnabled = saved["hostedWebSearchEnabled"] as? Boolean ?: false,
+            anthropicVersion = saved["anthropicVersion"] as? String
+                ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
+        )
+    },
+)
+
 
 @Composable
 internal fun ModelProviderDetailScreen(
@@ -166,7 +196,12 @@ internal fun ModelProviderDetailScreen(
     val initial = provider ?: draft!!
     val isNew = provider == null
     var currentTab by remember { mutableIntStateOf(0) }
-    var configDraft by remember(initial.id) { mutableStateOf(ProviderConfigDraft.from(initial)) }
+    var configDraft by rememberSaveable(
+        initial.id,
+        stateSaver = ProviderConfigDraftSaver,
+    ) {
+        mutableStateOf(ProviderConfigDraft.from(initial))
+    }
     val title = if (isNew) context.getString(R.string.page_create_new_provider_36cab9) else initial.name
 
     MiuixScaffold(title = title, onBack = onBack) { paddingValues, scrollBehavior, sidePadding ->

@@ -1,5 +1,6 @@
 package fuck.andes.ui.pages.providers
 
+import androidx.compose.runtime.saveable.SaverScope
 import fuck.andes.R
 import fuck.andes.data.model.CustomProviderSetting
 import fuck.andes.data.model.Model
@@ -16,6 +17,29 @@ class ProviderComponentsTest {
         assertEquals(null, contextWindowInputError(" 256000 "))
         assertEquals("Context window must be a positive integer", contextWindowInputError("0"))
         assertEquals("Context window must be a positive integer", contextWindowInputError("999999999999"))
+    }
+
+    @Test
+    fun providerDraftSaverPreservesUnsavedConfiguration() {
+        val draft = ProviderConfigDraft(
+            name = "临时提供商",
+            baseUrl = "https://api.example.com/v1",
+            apiKey = "temporary-key",
+            systemPrompt = "保持简洁",
+            isEnabled = false,
+            endpointMode = "chat_completions",
+            hostedWebSearchEnabled = true,
+            anthropicVersion = "2023-06-01",
+        )
+
+        val scope = object : SaverScope {
+            override fun canBeSaved(value: Any): Boolean = true
+        }
+
+        val saved = with(ProviderConfigDraftSaver) { scope.save(draft) }
+        val restored = ProviderConfigDraftSaver.restore(requireNotNull(saved))
+
+        assertEquals(draft, restored)
     }
 
     @Test
